@@ -1,0 +1,314 @@
+@startuml levelmusic_diagram
+
+'-----------------------------
+' Entities
+'-----------------------------
+
+entity users #E6BB93 {
+  * _id              : OBJECT ID <<UID>>
+  * auth_id          : STRING
+  * email            : STRING
+  * first_name       : STRING
+  * last_name        : STRING
+  * company_name     : STRING
+  * contact_person   : STRING
+  * phone            : STRING
+  * client_type      : OBJECT
+  * document_type    : ENUM('DNI','RUC')
+  * document_number  : STRING
+  * role             : ENUM('Cliente','Personal Externo','Administrador','Almacenero','Transportista')
+  * status           : ENUM('Activo','Inactivo')
+  * needs_password_change : BOOLEAN
+  * created_by_admin : BOOLEAN
+  * profile_picture  : STRING
+  * is_extra_data_completed : BOOLEAN
+  * is_temp_account  : BOOLEAN
+  --
+  created_at         : DATETIME
+  updated_at         : DATETIME
+}
+
+entity event_types #E6BB93 {
+  * _id              : OBJECT ID <<UID>>
+  * type             : STRING
+  * description      : STRING
+  * category         : ENUM('Social','Corporativo')
+  * status           : ENUM('Activo','Inactivo')
+  * attributes       : OBJECT
+  --
+  created_at         : DATETIME
+  updated_at         : DATETIME
+}
+
+entity events #E6BB93 {
+  * _id               : OBJECT ID <<UID>>
+  * name              : STRING
+  * description       : STRING
+  * date              : DATETIME
+  * start_time        : STRING
+  * end_time          : STRING
+  * attendees_count   : NUMBER
+  * exact_address     : STRING
+  * location_reference: STRING
+  * place_type        : ENUM('Open','Closed')
+  * place_size        : NUMBER
+  * user_id           : OBJECT ID
+  * event_type_id     : OBJECT ID
+  * event_type_name   : STRING
+  * services_requested: OBJECT
+  * final_price       : NUMBER
+  * status            : ENUM('Pendiente','Enviado','Confirmado','Terminado','Cancelado')
+  * client_info       : OBJECT
+  --
+  created_at          : DATETIME
+  updated_at          : DATETIME
+}
+
+entity service_types #E6BB93 {
+  * _id              : OBJECT ID <<UID>>
+  * name             : STRING
+  * description      : STRING
+  * category         : ENUM('Fotografía','Entretenimiento','Gastronomía','Estructura','Iluminación','Decoración','Servicio','Tecnología')
+  * status           : ENUM('Activo','Inactivo')
+  * attributes       : OBJECT
+  --
+  created_at         : DATETIME
+  updated_at         : DATETIME
+}
+
+entity providers #E6BB93 {
+  * _id              : OBJECT ID <<UID>>
+  * name             : STRING
+  * contact_name     : STRING
+  * phone            : STRING
+  * email            : STRING
+  * status           : ENUM('Activo','Inactivo')
+  --
+  created_at         : DATETIME
+  updated_at         : DATETIME
+}
+
+entity services #E6BB93 {
+  * _id              : OBJECT ID <<UID>>
+  * provider_id      : OBJECT ID
+  * service_type_id  : OBJECT ID
+  * provider_name    : STRING
+  * service_type_name: STRING
+  * status           : ENUM('Activo','Inactivo')
+  --
+  created_at         : DATETIME
+  updated_at         : DATETIME
+}
+
+entity service_details #E6BB93 {
+  * _id              : OBJECT ID <<UID>>
+  * service_id       : OBJECT ID
+  * details          : OBJECT
+  * ref_price        : NUMBER
+  * status           : ENUM('Activo','Inactivo')
+}
+
+entity assignations #E6BB93 {
+  * _id                   : OBJECT ID <<UID>>
+  * event_id              : OBJECT ID
+  * resource_type         : ENUM('service-detail','equipment','worker')
+  * resource_id           : OBJECT ID
+  * hours                 : NUMBER
+  * hourly_rate           : NUMBER
+  * available_from        : STRING
+  * available_to          : STRING
+  * day_of_week           : ENUM('Domingo','Lunes','Martes','Miercoles','Jueves','Viernes','Sabado')
+  * assigned_at           : DATETIME
+
+  -- Solo si es servicio
+  * service_detail        : OBJECT
+  * service_ref_price     : NUMBER
+  * service_provider_name : STRING
+  * service_type_name     : STRING
+
+  -- Solo si es equipo
+  * equipment_name        : STRING
+  * equipment_description : STRING
+  * equipment_type        : STRING
+  * equipment_serial_number : STRING
+  * equipment_status      : STRING
+
+  -- Solo si es trabajador
+  * worker_role           : STRING
+  * worker_status         : ENUM('Activo','Inactivo')
+}
+
+entity worker_types #E6BB93 {
+  * _id               : OBJECT ID <<UID>>
+  * name              : STRING
+  * description       : STRING
+  * status            : ENUM('Activo','Inactivo')
+  --
+  created_at          : DATETIME
+  updated_at          : DATETIME
+}
+
+entity workers #E6BB93 {
+  * _id               : OBJECT ID <<UID>>
+  * worker_type_name  : STRING
+  * first_name        : STRING
+  * last_name         : STRING
+  * email             : STRING
+  * phone             : STRING
+  * document_type     : ENUM('DNI','RUC')
+  * document_number   : STRING
+  * status            : ENUM('Activo','Inactivo')
+  * worker_type_id    : OBJECT ID
+  * user_id           : OBJECT ID
+  --
+  created_at          : DATETIME
+  updated_at          : DATETIME
+}
+
+entity incidents #E6BB93 {
+  * _id               : OBJECT ID <<UID>>
+  * event_id          : OBJECT ID
+  * worker_id         : OBJECT ID
+  * resource_id       : OBJECT ID
+  * resource_type     : ENUM('Equipo de sonido','Equipo de luz','Otro')
+  * incident_type     : ENUM('Transporte','Evento')
+  * description       : STRING
+  * incident_date     : DATETIME
+  * incident_location : STRING (nullable)
+  --
+  created_at          : DATETIME
+}
+
+entity equipments #E6BB93 {
+  * _id               : OBJECT ID <<UID>>
+  * name              : STRING
+  * description       : STRING
+  * equipment_type    : ENUM('Sonido','Luz')
+  * serial_number     : STRING
+  * status            : ENUM('Disponible','En mantenimiento','Dañado')
+  * location          : ENUM('Almacen','Evento','Salida','Retorno')
+  * last_maintenance_date  : DATETIME
+  * next_maintenance_date  : DATETIME
+  * maintenance_interval_days : NUMBER
+  * maintenance_count : NUMBER
+  --
+  created_at          : DATETIME
+  updated_at          : DATETIME
+}
+
+entity maintenances #E6BB93 {
+  * _id               : OBJECT ID <<UID>>
+  * type              : ENUM('Preventivo','Correctivo')
+  * description       : STRING
+  * equipment_serial_number : STRING
+  * equipment_name    : STRING
+  * equipment_type    : STRING
+  * status            : STRING
+  * reagendation_reason : STRING
+  * cancelation_reason : STRING
+  * equipment_id      : OBJECT ID
+  --
+  date                : DATETIME
+}
+
+entity storehouse_movements #E6BB93 {
+  * _id               : OBJECT ID <<UID>>
+  * equipment_id      : OBJECT ID
+  * event_id          : OBJECT ID
+  * movement_type     : ENUM('Entrada','Salida')
+  --
+  movement_date       : DATETIME
+}
+
+entity event_tasks #E6BB93 {
+  * _id               : OBJECT ID <<UID>>
+  * event_id          : OBJECT ID
+  * template_id       : OBJECT ID (nullable)
+  * worker_type_id    : OBJECT ID
+  * worker_id         : OBJECT ID (nullable)
+  * title             : STRING
+  * notes             : STRING
+  * phase             : ENUM('Pre-evento','En-evento','Post-evento')
+  * status            : ENUM('Pendiente','Realizado')
+  * requires_evidence : BOOLEAN
+  * evidence          : OBJECT (nullable) 
+  * assigned_at       : DATETIME (nullable) 
+  * completed_at      : DATETIME (nullable) 
+  --
+  created_at          : DATETIME
+  updated_at          : DATETIME
+}
+
+entity payment_schedules #E6BB93 {
+  * _id               : OBJECT ID <<UID>>
+  * event_id          : OBJECT ID
+  * payment_type      : ENUM('Parcial','Final')
+  * due_date          : DATETIME
+  * total_amount      : DECIMAL(10,2)
+  * status            : ENUM('Pendiente','Completa','Retrasado')
+  --
+  created_at          : DATETIME
+}
+
+entity sales_documents #E6BB93 {
+  * _id               : OBJECT ID <<UID>>
+  * sale_document_number : STRING
+  * schedule_id       : OBJECT ID
+  * event_id          : OBJECT ID
+  * user_id           : OBJECT ID
+  * total_amount      : DECIMAL(10,2)
+  * type              : ENUM('Boleta','Factura')
+  --
+  issue_date          : DATETIME
+}
+
+entity sales_document_details #E6BB93 {
+  * _id               : OBJECT ID <<UID>>
+  * sale_document_id  : OBJECT ID
+  * name              : STRING
+  * description       : STRING
+  * quantity          : INTEGER (nullable)
+  * unit_price        : DECIMAL(10,2)
+  * total_price       : DECIMAL(10,2)
+  --
+  created_at          : DATETIME
+}
+
+'-----------------------------
+' Relationships
+'-----------------------------
+users                ||--o{ events                 : creates
+event_types          ||--o{ events                 : classifies
+service_types        ||--o{ services               : classifies
+providers            ||--o{ services               : provides
+
+users                ||--|| workers                : is_profile_of
+worker_types         ||--o{ workers                : classifies
+
+events               ||--o{ storehouse_movements   : associates
+equipments           ||--o{ storehouse_movements   : is_moved
+equipments           ||--o{ maintenances           : receives_maintenance
+
+events               ||--o{ event_tasks            : generates
+worker_types         ||--o{ event_tasks            : classifies
+workers              ||--o{ event_tasks            : assigned_to
+
+events               ||--o{ assignations           : has_assignments
+workers              ||--o{ assignations           : participates_in
+equipments           ||--o{ assignations           : is_assigned
+service_details      ||--o{ assignations           : is_assigned
+
+events               ||--o{ payment_schedules      : plans_payments
+
+events               ||--o{ sales_documents        : generates
+users                ||--o{ sales_documents        : issues_to
+payment_schedules    ||--|| sales_documents        : generates
+
+sales_documents      ||--o{ sales_document_details : has_detail
+events               ||--o{ incidents              : records_incidents
+workers              ||--o{ incidents              : registered
+equipments           ||--o{ incidents              : has_incidents
+
+services             ||--o{ service_details        : contains
+
+@enduml
