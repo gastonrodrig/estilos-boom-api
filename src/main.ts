@@ -97,7 +97,7 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup(`${API_PREFIX}/docs`, app, document);
+  SwaggerModule.setup('api', app, document);
 
   /**
    * Start server

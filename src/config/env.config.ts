@@ -12,6 +12,9 @@ class EnvConfig {
   APP_URL: string;
 
   @IsString()
+  OPTIMIZE_API_KEY: string;
+
+  @IsString()
   DATABASE_URL: string;
 
   @IsString()
@@ -75,6 +78,7 @@ export const envConfig = validateConfig(process.env);
 export const envs = {
   PORT: envConfig.PORT,
   APP_URL: envConfig.APP_URL,
+  OPTIMIZE_API_KEY: envConfig.OPTIMIZE_API_KEY,
 
   DATABASE_URL: envConfig.DATABASE_URL,
 
