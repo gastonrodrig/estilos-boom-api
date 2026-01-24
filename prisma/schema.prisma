@@ -1,28 +1,95 @@
 // =====================
-// CONFIGURACIÓN
+// ENUMS
 // =====================
-generator client {
-  provider = "prisma-client-js"
+enum status_enum {
+  active
+  inactive
 }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+enum worker_role {
+  admin
+  warehouse
+}
+
+enum client_type_enum {
+  natural_person
+  legal_entity
+  company
+}
+
+enum document_type_enum {
+  dni
+  ruc
 }
 
 // =====================
-// USUARIOS
+// USER
 // =====================
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id_user          String             @id @default(uuid())
+  auth_id          String             @unique
+  email            String             @unique
+  phone            String
+  first_name       String
+  last_name        String
+  document_type    document_type_enum
+  document_number  String             @unique
+  status           status_enum         @default(active)
+  created_at       DateTime           @default(now())
+  updated_at       DateTime           @updatedAt
+
+  worker           Worker?
+  client           Client?
 }
 
 // =====================
-// PRODUCTOS
+// WORKER
+// =====================
+model Worker {
+  id_worker          String      @id @default(uuid())
+  id_user            String      @unique
+  role               worker_role
+  employment_status  status_enum @default(active)
+  hired_at           DateTime    @default(now())
+
+  user               User        @relation(fields: [id_user], references: [id_user])
+}
+
+// =====================
+// CLIENT
+// =====================
+model Client {
+  id_client               String            @id @default(uuid())
+  id_user                 String            @unique
+  address                 String  
+  profile_picture         String
+  client_type             client_type_enum
+  needs_password_change   Boolean           @default(true)
+  created_by_admin        Boolean           @default(false)
+  is_extra_data_completed Boolean           @default(false)
+  registered_at           DateTime          @default(now())
+
+  user           User            @relation(fields: [id_user], references: [id_user])
+  client_company ClientCompany?
+}
+
+// =====================
+// CLIENT COMPANY 
+// =====================
+model ClientCompany {
+  id_client           String  @id
+  company_name        String
+
+  contact_first_name  String
+  contact_last_name   String
+  contact_email       String  @unique
+  contact_phone       String
+
+  client              Client  @relation(fields: [id_client], references: [id_client])
+}
+
+// =====================
+// PRODUCT
 // =====================
 model Product {
   id          String   @id @default(uuid())
@@ -31,7 +98,7 @@ model Product {
   sku         String   @unique
   price       Float
   stock       Int
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 }
