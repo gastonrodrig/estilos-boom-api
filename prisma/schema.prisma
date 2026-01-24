@@ -14,24 +14,23 @@ datasource db {
 // ENUMS
 // =====================
 enum status_enum {
-  active
-  inactive
+  Activo
+  Inactivo
 }
 
 enum worker_role {
-  admin
-  warehouse
+  Admin
+  Warehouse
 }
 
 enum client_type_enum {
-  natural_person
-  legal_entity
-  company
+  Persona
+  Empresa
 }
 
 enum document_type_enum {
-  dni
-  ruc
+  DNI
+  RUC
 }
 
 // =====================
@@ -41,14 +40,16 @@ model User {
   id_user          String             @id @default(uuid())
   auth_id          String             @unique
   email            String             @unique
-  phone            String
-  first_name       String
-  last_name        String
-  document_type    document_type_enum
-  document_number  String             @unique
-  status           status_enum         @default(active)
-  created_at       DateTime           @default(now())
-  updated_at       DateTime           @updatedAt
+
+  phone            String?
+  first_name       String?
+  last_name        String?
+  document_type    document_type_enum?
+  document_number  String?            @unique
+
+  status           status_enum         @default(Activo)
+  created_at       DateTime            @default(now())
+  updated_at       DateTime            @default(now()) @updatedAt
 
   worker           Worker?
   client           Client?
@@ -61,7 +62,7 @@ model Worker {
   id_worker          String      @id @default(uuid())
   id_user            String      @unique
   role               worker_role
-  employment_status  status_enum @default(active)
+  employment_status  status_enum @default(Activo)
   hired_at           DateTime    @default(now())
 
   user               User        @relation(fields: [id_user], references: [id_user])
@@ -71,11 +72,15 @@ model Worker {
 // CLIENT
 // =====================
 model Client {
-  id_client      String          @id @default(uuid())
-  id_user        String          @unique
-  address        String
-  client_type    client_type_enum
-  registered_at  DateTime        @default(now())
+  id_client               String          @id @default(uuid())
+  id_user                 String          @unique
+  address                 String?
+  profile_picture         String?
+  client_type             client_type_enum?
+  needs_password_change   Boolean @default(true)
+  created_by_admin        Boolean @default(false)
+  is_extra_data_completed Boolean @default(false)
+  registered_at           DateTime        @default(now())
 
   user           User            @relation(fields: [id_user], references: [id_user])
   client_company ClientCompany?
@@ -109,5 +114,5 @@ model Product {
   stock       Int
   is_active   Boolean  @default(true)
   created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  updated_at  DateTime @default(now()) @updatedAt
 }

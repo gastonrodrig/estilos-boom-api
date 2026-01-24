@@ -28,8 +28,8 @@ export class ProductService {
 
   async findAll() {
     return this.prisma.product.findMany({
-      where: { isActive: true },
-      orderBy: { createdAt: 'desc' },
+      where: { is_active: true },
+      orderBy: { created_at: 'desc' },
     });
   }
 
@@ -55,7 +55,7 @@ export class ProductService {
   async deactivate(id: string) {
     return this.prisma.product.update({
       where: { id },
-      data: { isActive: false },
+      data: { is_active: false },
     });
   }
 }
