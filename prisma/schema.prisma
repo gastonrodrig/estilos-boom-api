@@ -1,4 +1,16 @@
 // =====================
+// CONFIGURACIÓN
+// =====================
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================
 // ENUMS
 // =====================
 enum status_enum {
@@ -59,15 +71,11 @@ model Worker {
 // CLIENT
 // =====================
 model Client {
-  id_client               String            @id @default(uuid())
-  id_user                 String            @unique
-  address                 String  
-  profile_picture         String
-  client_type             client_type_enum
-  needs_password_change   Boolean           @default(true)
-  created_by_admin        Boolean           @default(false)
-  is_extra_data_completed Boolean           @default(false)
-  registered_at           DateTime          @default(now())
+  id_client      String          @id @default(uuid())
+  id_user        String          @unique
+  address        String
+  client_type    client_type_enum
+  registered_at  DateTime        @default(now())
 
   user           User            @relation(fields: [id_user], references: [id_user])
   client_company ClientCompany?
@@ -86,6 +94,7 @@ model ClientCompany {
   contact_phone       String
 
   client              Client  @relation(fields: [id_client], references: [id_client])
+
 }
 
 // =====================
