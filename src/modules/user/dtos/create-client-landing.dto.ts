@@ -1,6 +1,7 @@
 import { IsEmail, IsNotEmpty, IsString, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
+
 export class CreateClientLandingDto {
   @ApiProperty({ example: 'auth_id_example' })
   @IsString()
@@ -17,3 +18,4 @@ export class CreateClientLandingDto {
   @IsOptional()
   profile_picture?: string;
 } 
+

@@ -4,6 +4,12 @@ export const API_VERSION = 'v1';
 
 export const API_PREFIX = 'api/v1';
 
+export enum Roles {
+  ADMIN = 'Administrador',
+  CLIENTE = 'Cliente',
+  WORKER = 'Trabajador'
+}
+
 export enum Estado {
   ACTIVO = 'Activo',
   INACTIVO = 'Inactivo'

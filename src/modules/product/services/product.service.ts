@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateProductDto } from '../dto/create-product.dto';
+import { Product } from '@prisma/client';
 
 @Injectable()
 export class ProductService {     
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateProductDto) {
+  async create(dto: CreateProductDto): Promise<Product> {
     const exists = await this.prisma.product.findUnique({
       where: { sku: dto.sku },
     });
@@ -26,14 +27,14 @@ export class ProductService {
     });
   }
 
-  async findAll() {
+  async findAll(): Promise<Product[]> {
     return this.prisma.product.findMany({
       where: { is_active: true },
       orderBy: { created_at: 'desc' },
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string): Promise<Product> {
     const product = await this.prisma.product.findUnique({
       where: { id },
     });
@@ -45,14 +46,14 @@ export class ProductService {
     return product;
   }
 
-  async updateStock(id: string, stock: number) {
+  async updateStock(id: string, stock: number): Promise<Product> {
     return this.prisma.product.update({
       where: { id },
       data: { stock },
     });
   }
 
-  async deactivate(id: string) {
+  async deactivate(id: string): Promise<Product> {
     return this.prisma.product.update({
       where: { id },
       data: { is_active: false },

@@ -33,6 +33,12 @@ enum document_type_enum {
   RUC
 }
 
+enum role_enum {
+  Administrador
+  Cliente
+  Trabajador
+}
+
 // =====================
 // USER
 // =====================
@@ -46,6 +52,7 @@ model User {
   last_name        String?
   document_type    document_type_enum?
   document_number  String?            @unique
+  role             role_enum?
 
   status           status_enum         @default(Activo)
   created_at       DateTime            @default(now())
