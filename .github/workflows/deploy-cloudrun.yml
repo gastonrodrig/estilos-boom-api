@@ -44,6 +44,8 @@ jobs:
           context: .
           push: true
           tags: gcr.io/${{ secrets.GCP_PROJECT_ID }}/estilos-boom-api:${{ github.sha }}
+          build-args: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
 
       # 7. Deploy to Cloud Run
       - name: Deploy to Cloud Run
