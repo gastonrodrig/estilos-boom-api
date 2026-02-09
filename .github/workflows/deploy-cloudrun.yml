@@ -13,7 +13,7 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v3
 
-      # 2. Auth GCP (Service Account)
+      # 2. Authenticate to GCP
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
@@ -25,17 +25,13 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # 4. Set default region
+      # 4. Set default Cloud Run region
       - name: Set default Cloud Run region
         run: gcloud config set run/region ${{ secrets.GCP_REGION }}
 
-      # 5. Docker auth (GCR)
-      - name: Log in to Google Container Registry
-        uses: docker/login-action@v2
-        with:
-          registry: gcr.io
-          username: _json_key
-          password: ${{ secrets.GCP_SA_KEY }}
+      # 5. Docker auth (Artifact Registry)
+      - name: Log in to Artifact Registry
+        run: gcloud auth configure-docker europe-west1-docker.pkg.dev
 
       # 6. Build & Push Docker image
       - name: Build and push Docker image
@@ -43,7 +39,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: gcr.io/${{ secrets.GCP_PROJECT_ID }}/estilos-boom-api:${{ github.sha }}
+          tags: europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/estilos-boom/estilos-boom-api:${{ github.sha }}
           build-args: |
             DATABASE_URL=${{ secrets.DATABASE_URL }}
 
@@ -54,7 +50,7 @@ jobs:
           service: estilos-boom-api
           project_id: ${{ secrets.GCP_PROJECT_ID }}
           region: ${{ secrets.GCP_REGION }}
-          image: gcr.io/${{ secrets.GCP_PROJECT_ID }}/estilos-boom-api:${{ github.sha }}
+          image: europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/estilos-boom/estilos-boom-api:${{ github.sha }}
           env_vars: |
             PORT=8080
             DATABASE_URL=${{ secrets.DATABASE_URL }}
