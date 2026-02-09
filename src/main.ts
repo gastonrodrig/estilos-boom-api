@@ -110,7 +110,7 @@ async function bootstrap() {
   logger.log(`Swagger docs: http://localhost:${port}/api`);
 
   // main.ts
-  console.log('Deploy desde GitHub Actions');
+  console.log('Deploy desde GitHub Action');
 }
 
 bootstrap();
