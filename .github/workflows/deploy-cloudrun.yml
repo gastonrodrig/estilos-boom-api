@@ -52,7 +52,6 @@ jobs:
           region: ${{ secrets.GCP_REGION }}
           image: europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/estilos-boom/estilos-boom-api:${{ github.sha }}
           env_vars: |
-            PORT=8080
             DATABASE_URL=${{ secrets.DATABASE_URL }}
             REDIS_URL=${{ secrets.REDIS_URL }}
 
