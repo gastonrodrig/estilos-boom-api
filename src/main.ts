@@ -71,6 +71,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'http://localhost:3000',
+      'https://estilos-boom-web.vercel.app'
     ],
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
@@ -107,6 +108,9 @@ async function bootstrap() {
 
   logger.log(`App running on port ${port}`);
   logger.log(`Swagger docs: http://localhost:${port}/api`);
+
+  // main.ts
+  console.log('Deploy desde GitHub Actions');
 }
 
 bootstrap();

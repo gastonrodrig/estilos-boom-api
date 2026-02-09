@@ -11,8 +11,9 @@ class EnvConfig {
   @IsString()
   APP_URL: string;
 
+  @IsOptional()
   @IsString()
-  OPTIMIZE_API_KEY: string;
+  OPTIMIZE_API_KEY?: string;
 
   @IsString()
   DATABASE_URL: string;

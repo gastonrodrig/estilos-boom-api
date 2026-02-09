@@ -52,7 +52,7 @@ export class MailService {
        <html>
   <head>
   </head>
-  <body style="margin:0; padding:0; background:#DFE0E2; font-family: Arial, sans-serif;">
+  <body style="margin:0; padding:0; background:#ffffff; font-family: Arial, sans-serif;">
 
     <!-- Wrapper -->
     <div style="
