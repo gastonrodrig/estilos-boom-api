@@ -81,6 +81,20 @@ async function bootstrap() {
   /**
    * Swagger configuration
    */
+  if (process.env.NODE_ENV === 'production') {
+    const basicAuth = require('express-basic-auth');
+    const swaggerUser = process.env.SWAGGER_USER;
+    const swaggerPassword = process.env.SWAGGER_PASSWORD;
+    app.use(
+      '/api',
+      basicAuth({
+        users: { [swaggerUser]: swaggerPassword },
+        challenge: true,
+        unauthorizedResponse: 'No autorizado',
+      })
+    );
+  }
+
   const swaggerConfig = new DocumentBuilder()
     .setTitle(APP_NAME)
     .setDescription(APP_DESCRIPTION)
@@ -108,9 +122,6 @@ async function bootstrap() {
 
   logger.log(`App running on port ${port}`);
   logger.log(`Swagger docs: http://localhost:${port}/api`);
-
-  // main.ts
-  console.log('Deploy desde GitHub Action');
 }
 
 bootstrap();
