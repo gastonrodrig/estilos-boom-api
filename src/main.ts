@@ -1,10 +1,11 @@
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { Logger, ValidationPipe } from '@nestjs/common';
-import { envs } from './config';
+import * as expressBasicAuth from 'express-basic-auth';
 import * as admin from 'firebase-admin';
 
 import { AppModule } from './app.module';
+import { envs } from './config';
 import {
   APP_NAME,
   API_PREFIX,
@@ -82,17 +83,13 @@ async function bootstrap() {
    * Swagger configuration
    */
   if (process.env.NODE_ENV === 'production') {
-    const basicAuth = require('express-basic-auth');
     const swaggerUser = process.env.SWAGGER_USER;
     const swaggerPassword = process.env.SWAGGER_PASSWORD;
-    app.use(
-      '/api',
-      basicAuth({
-        users: { [swaggerUser]: swaggerPassword },
-        challenge: true,
-        unauthorizedResponse: 'No autorizado',
-      })
-    );
+    app.use('/api', expressBasicAuth({
+      users: { [swaggerUser]: swaggerPassword },
+      challenge: true,
+      unauthorizedResponse: 'No autorizado',
+    }));
   }
 
   const swaggerConfig = new DocumentBuilder()
