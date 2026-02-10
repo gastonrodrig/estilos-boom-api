@@ -117,11 +117,13 @@ async function bootstrap() {
   /**
    * Start server
    */
-  const port = Number(envs.PORT) || 3001;
-  await app.listen(port, '0.0.0.0');
+  const cloudPort = Number(process.env.PORT) || 8080;
+  const internalPort = 3001;
 
-  logger.log(`App running on port ${port}`);
-  logger.log(`Swagger docs: http://localhost:${port}/api`);
+  await app.listen(cloudPort, '0.0.0.0');
+
+  logger.log(`App running on port ${internalPort}`);
+  logger.log(`Swagger docs: http://localhost:${internalPort}/api`);
 }
 
 bootstrap();
