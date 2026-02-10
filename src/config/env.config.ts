@@ -1,13 +1,10 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { IsNumber, IsOptional, IsString, validateSync } from 'class-validator';
+import { IsOptional, IsString, validateSync } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 
 class EnvConfig {
-  @IsNumber()
-  PORT: number;
-
   @IsString()
   APP_URL: string;
 
@@ -52,7 +49,6 @@ function validateConfig(config: Record<string, unknown>) {
     EnvConfig,
     {
       ...config,
-      PORT: config.PORT ? Number(config.PORT) : undefined,
     },
     {
       enableImplicitConversion: true,
@@ -77,7 +73,6 @@ function validateConfig(config: Record<string, unknown>) {
 export const envConfig = validateConfig(process.env);
 
 export const envs = {
-  PORT: envConfig.PORT,
   APP_URL: envConfig.APP_URL,
   OPTIMIZE_API_KEY: envConfig.OPTIMIZE_API_KEY,
 

@@ -117,7 +117,7 @@ async function bootstrap() {
   /**
    * Start server
    */
-  const port = Number(envs.PORT) || 3001;
+  const port = Number(process.env.PORT) || 3001;
   await app.listen(port, '0.0.0.0');
 
   logger.log(`App running on port ${port}`);
