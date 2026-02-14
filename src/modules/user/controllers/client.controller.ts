@@ -15,7 +15,8 @@ import { FirebaseAuthGuard } from 'src/auth/guards';
 import { ClientService } from '../services';
 import { 
   CreateClientLandingDto, 
-  RequestPasswordResetDto 
+  RequestPasswordResetDto,
+  UpdateExtraDataDto, 
 } from '../dtos';
 import { ApiTags, ApiOperation, ApiParam, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { Public } from 'src/auth/decorators';
@@ -111,5 +112,28 @@ export class ClientController {
   })
   async requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
     return this.clientService.sendPasswordResetEmail(dto.email);
+  }
+
+  @Patch('extra-data/:uid')
+  @UseGuards(FirebaseAuthGuard)
+  @ApiBearerAuth('firebase-auth')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Actualizar información extra de un usuario por uid',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description:
+      'La información extra del usuario ha sido actualizada correctamente.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Error al actualizar la información extra del usuario.',
+  })
+  async updateExtraData(
+    @Param('uid') auth_id: string,
+    @Body() UpdateExtraDataDto: UpdateExtraDataDto,
+  ) {
+    return this.clientService.updateUserExtraData(auth_id, UpdateExtraDataDto);
   }
 }

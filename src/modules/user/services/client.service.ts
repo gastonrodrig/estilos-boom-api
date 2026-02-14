@@ -15,7 +15,7 @@ import { User } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { AuthService } from 'src/modules/firebase/services';
-
+import { UpdateClientAdminDto, UpdateExtraDataDto } from '../dtos';
 @Injectable()
 export class ClientService {
   constructor(
@@ -207,6 +207,41 @@ export class ClientService {
       throw new InternalServerErrorException(
         `Error enviando enlace de reseteo: ${error.message}`,
       );
+    }
+  }
+  
+  async updateUserExtraData(
+    auth_id: string,
+    updateExtraDataDto: UpdateExtraDataDto,
+  ): Promise<User> {
+    try {
+      const existingDoc = await this.prisma.user.findUnique({
+        where: { document_number: updateExtraDataDto.document_number },
+      });
+
+      if (existingDoc && existingDoc.auth_id !== auth_id) {
+        throw new HttpException(
+          {
+            code: errorCodes.DOCUMENT_NUMBER_ALREADY_EXISTS,
+            message: 'El número de documento ya fue registrado previamente.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const updatedUser = await this.prisma.user.update({
+        where: {
+          auth_id: auth_id,
+        },
+        data: {
+          ...updateExtraDataDto,
+        },
+      });
+
+      return updatedUser;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(`Error: ${error.message}`);
     }
   }
 }
