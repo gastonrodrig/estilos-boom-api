@@ -26,7 +26,7 @@ import { Public } from 'src/auth/decorators';
 export class ClientController {
   constructor(private readonly clientService: ClientService) {}
 
-  @Post()
+  @Post('/client-landing')
   @Public()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Crear un nuevo usuario' })

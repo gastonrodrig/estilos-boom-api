@@ -17,7 +17,7 @@ export class PrismaService
     });
     this.$extends(
       withOptimize({
-        apiKey: process.env.OPTIMIZE_API_KEY,
+        apiKey: envs.OPTIMIZE_API_KEY,
       }),
     );
   }
