@@ -221,6 +221,7 @@ export class ClientService {
     try {
       const user = await this.prisma.user.findUnique({
         where: { auth_id },
+        include: { client: true },
       });
 
       if (!user) throw new BadRequestException('Usuario no encontrado');
@@ -242,23 +243,52 @@ export class ClientService {
         }
       }
 
-      await this.prisma.$transaction([
-        this.prisma.user.update({
+      const {
+        client_type,
+        company_name,
+        contact_name,
+        ...userData
+      } = dto;
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.user.update({
           where: { id_user: user.id_user },
-          data: dto,
-        }),
-        this.prisma.client.update({
+          data: userData,
+        });
+
+        const client = await tx.client.update({
           where: { id_user: user.id_user },
           data: {
             is_extra_data_completed: true,
+            ...(client_type && { client_type }),
           },
-        }),
-      ]);
+        });
+
+        if (client_type === 'Empresa') {
+          if (!company_name || !contact_name) {
+            throw new BadRequestException(
+              'Empresa requiere company_name y contact_name',
+            );
+          }
+
+          await tx.clientCompany.create({
+            data: {
+              id_client: client.id_client,
+              company_name,
+              contact_name,
+            },
+          });
+        }
+      });
 
       return this.prisma.user.findUnique({
         where: { id_user: user.id_user },
         include: {
-          client: true,
+          client: {
+            include: {
+              client_company: true,
+            },
+          },
         },
       });
     } catch (error) {
