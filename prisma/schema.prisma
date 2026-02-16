@@ -99,14 +99,8 @@ model Client {
 model ClientCompany {
   id_client           String  @id
   company_name        String
-
-  contact_first_name  String
-  contact_last_name   String
-  contact_email       String  @unique
-  contact_phone       String
-
+  contact_name        String
   client              Client  @relation(fields: [id_client], references: [id_client])
-
 }
 
 // =====================

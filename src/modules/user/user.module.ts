@@ -8,6 +8,7 @@ import { AuthService } from '../firebase/services';
     imports: [
     BullModule.registerQueue(
       { name: 'forgot-password' },
+      { name: 'temporal-credentials' },
     ),
   ],
   controllers: [ClientController],

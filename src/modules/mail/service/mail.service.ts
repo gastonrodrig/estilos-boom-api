@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import * as nodemailer from 'nodemailer';
 import {
   CreatePasswordResetLinkMailDto,
+  CreateTemporalCredentialMailDto,
 } from '../dto';
 
 @Injectable()
@@ -131,6 +132,104 @@ export class MailService {
       return result;
     } catch (error) {
       throw new Error(`Failed to send password reset email: ${error.message}`);
+    }
+  }
+
+  async sendTemporalCredentials(dto: CreateTemporalCredentialMailDto) {
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      to: dto.to,
+      subject: 'Credenciales Level Music Corp',
+      text: `Hola,\n\nTus credenciales de acceso son:\n• Email: ${dto.email}\n• Contraseña temporal: ${dto.password}\n\nEntra en https://estilos-boom-web.vercel.app//. La primera vez que ingreses, solo tendrás que cambiar tu contraseña (tu email permanecerá igual).\nEquipo Estilos Boom\nhttps://estilos-boom-web.vercel.app/\n\n¡Bienvenido!`,
+      html: `<html>
+  <head></head>
+  <body style="margin:0; padding:0; background:#ffffff; font-family: Arial, sans-serif;">
+
+    <!-- Wrapper -->
+    <div style="
+      max-width:560px;
+      margin:24px auto;
+      background:#ffffff;
+      border:1px solid #C1BFC0;
+    ">
+
+      <!-- Header -->
+      <div style="padding:32px 24px; text-align:center;">
+        <img 
+          src="https://i.postimg.cc/GtGzCjqh/meta-icon.png" 
+          alt="Estilos Boom" 
+          width="64"
+          style="display:block; margin:0 auto 16px;"
+        />
+        <h1 style="margin:0; font-size:24px; color:#252020; font-weight:700;">
+          Credenciales de acceso
+        </h1>
+      </div>
+
+      <hr style="border:none; border-top:1px solid #C1BFC0; margin:0 24px;">
+
+      <!-- Content -->
+      <div style="padding:32px 24px;">
+        <p style="color:#252020; font-size:16px; margin-top:0;">
+          Hola,
+        </p>
+
+        <p style="color:#252020; font-size:16px; line-height:1.6;">
+          Tus credenciales de acceso han sido generadas correctamente:
+        </p>
+
+        <div style="margin:24px 0; font-size:16px; color:#252020;">
+          <p style="margin:8px 0;">
+            <strong>Email:</strong> 
+            <a href="mailto:${dto.email}" style="color:#252020;">
+              ${dto.email}
+            </a>
+          </p>
+
+          <p style="margin:8px 0;">
+            <strong>Contraseña temporal:</strong> 
+            <span style="color:#252020;">
+              ${dto.password}
+            </span>
+          </p>
+        </div>
+
+        <p style="color:#252020; font-size:16px; line-height:1.6;">
+          Puedes ingresar desde el siguiente enlace:
+          <br><br>
+          <a 
+            href="https://estilos-boom-web.vercel.app/" 
+            style="color:#252020; font-weight:700;"
+          >
+            https://estilos-boom-web.vercel.app/
+          </a>
+        </p>
+
+        <p style="color:#252020; font-size:14px; line-height:1.6;">
+          Por seguridad, deberás cambiar tu contraseña en tu primer inicio de sesión.
+        </p>
+      </div>
+
+      <!-- Footer -->
+      <div style="background:#f2b6c1; padding:20px 24px;">
+        <p style="margin:0; font-size:13px; color:#252020;">
+          Saludos,<br>
+          <strong>Equipo Estilos Boom</strong>
+        </p>
+      </div>
+
+    </div>
+
+  </body>
+</html>
+      `,
+    };
+
+    try {
+      const result = await this.transporter.sendMail(mailOptions);
+      return result;
+    } catch (error) {
+      throw new Error(`Failed to send temporal credentials email: ${error.message}`);
     }
   }
 }

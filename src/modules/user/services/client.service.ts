@@ -4,25 +4,29 @@ import {
   HttpStatus,
   Injectable,
   InternalServerErrorException,
-  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateClientLandingDto } from '../dtos/create-client-landing.dto';
 import { Estado, Roles } from 'src/core/constants/app.constants';
 import { RequestPasswordResetDto } from '../dtos/request-password-reset.dto';
 import { errorCodes } from 'src/core/common';
-import { User } from '@prisma/client';
+import { role_enum, status_enum, User } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { AuthService } from 'src/modules/firebase/services';
+import { UpdateExtraDataDto, CreateClientAdminDto } from '../dtos';
+import { client_type_enum } from '@prisma/client';
+import { generateRandomPassword } from 'src/core/utils';
 
 @Injectable()
 export class ClientService {
   constructor(
     private readonly prisma: PrismaService,
+    private authService: AuthService,
     @InjectQueue('forgot-password')
     private forgotPasswordQueue: Queue,
-    private authService: AuthService,
+    @InjectQueue('temporal-credentials')
+    private temporalCredentialsQueue: Queue,
   ) {}
 
   async createClientLanding(dto: CreateClientLandingDto) {
@@ -206,6 +210,247 @@ export class ClientService {
       if (error instanceof HttpException) throw error;
       throw new InternalServerErrorException(
         `Error enviando enlace de reseteo: ${error.message}`,
+      );
+    }
+  }
+
+  async updateUserExtraData(
+    auth_id: string,
+    dto: UpdateExtraDataDto,
+  ): Promise<User> {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { auth_id },
+      });
+
+      if (!user) throw new BadRequestException('Usuario no encontrado');
+
+      // validar documento único
+      if (dto.document_number) {
+        const existingDoc = await this.prisma.user.findUnique({
+          where: { document_number: dto.document_number },
+        });
+
+        if (existingDoc && existingDoc.id_user !== user.id_user) {
+          throw new HttpException(
+            {
+              code: errorCodes.DOCUMENT_NUMBER_ALREADY_EXISTS,
+              message: 'El número de documento ya fue registrado previamente.',
+            },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
+      await this.prisma.$transaction([
+        this.prisma.user.update({
+          where: { id_user: user.id_user },
+          data: dto,
+        }),
+        this.prisma.client.update({
+          where: { id_user: user.id_user },
+          data: {
+            is_extra_data_completed: true,
+          },
+        }),
+      ]);
+
+      return this.prisma.user.findUnique({
+        where: { id_user: user.id_user },
+        include: {
+          client: true,
+        },
+      });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async findAllCustomersPaginated(
+    limit = 5,
+    offset = 0,
+    search = '',
+    sortField: string = 'created_at',
+    sortOrder: 'asc' | 'desc' = 'asc',
+    clientType?: client_type_enum,
+  ): Promise<{ total: number; items: User[] }> {
+    try {
+      const where: any = {
+        role: 'Cliente',
+
+        // filtro por relación (Client)
+        ...(clientType && {
+          client: {
+            client_type: clientType,
+          },
+        }),
+
+        // búsqueda
+        ...(search && {
+          OR: [
+            { email: { contains: search, mode: 'insensitive' } },
+            { first_name: { contains: search, mode: 'insensitive' } },
+            { last_name: { contains: search, mode: 'insensitive' } },
+            { document_number: { contains: search, mode: 'insensitive' } },
+          ],
+        }),
+      };
+
+      const [total, items] = await this.prisma.$transaction([
+        this.prisma.user.count({ where }),
+
+        this.prisma.user.findMany({
+          where,
+          skip: offset,
+          take: limit,
+          orderBy: {
+            [sortField]: sortOrder,
+          },
+          include: {
+            client: true,
+          },
+        }),
+      ]);
+
+      return { total, items };
+    } catch (error) {
+      throw new Error(`Error al listar clientes: ${error.message}`);
+    }
+  }
+
+  async createClientAdmin(dto: CreateClientAdminDto): Promise<User> {
+    try {
+      // 1. Validar datos según tipo de cliente
+      const isPerson = dto.client_type === client_type_enum.Persona;
+      const isCompany = dto.client_type === client_type_enum.Empresa;
+
+      if (isPerson) {
+        if (!dto.first_name || !dto.last_name) {
+          throw new HttpException(
+            { message: 'Nombre y apellido son requeridos para persona.' },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
+      if (isCompany) {
+        if (
+          !dto.company_name ||
+          !dto.contact_name
+        ) {
+          throw new HttpException(
+            { message: 'Datos de empresa incompletos.' },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
+      // 2. Validar únicos
+      const [existingEmail, existingDoc] = await Promise.all([
+        this.prisma.user.findUnique({ where: { email: dto.email } }),
+        dto.document_number
+          ? this.prisma.user.findUnique({
+              where: { document_number: dto.document_number },
+            })
+          : null,
+      ]);
+
+      if (existingEmail) {
+        throw new HttpException(
+          {
+            code: errorCodes.EMAIL_ALREADY_EXISTS,
+            message: 'El correo ya fue registrado previamente.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      if (existingDoc) {
+        throw new HttpException(
+          {
+            code: errorCodes.DOCUMENT_NUMBER_ALREADY_EXISTS,
+            message: 'El número de documento ya fue registrado previamente.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // 3. Password
+      const password = generateRandomPassword();
+
+      // 4. Firebase
+      const firebaseUser = await this.authService.createUserWithEmail({
+        email: dto.email,
+        password,
+      });
+
+      if (!firebaseUser.success || !firebaseUser.uid) {
+        throw new InternalServerErrorException(firebaseUser.message);
+      }
+
+      // 5. Transacción
+      const user = await this.prisma.$transaction(async (tx) => {
+
+        // USER
+        const newUser = await tx.user.create({
+          data: {
+            auth_id: firebaseUser.uid,
+            email: dto.email,
+            first_name: dto.first_name,
+            last_name: dto.last_name,
+            phone: dto.phone,
+            document_type: dto.document_type,
+            document_number: dto.document_number,
+            role: role_enum.Cliente,
+            status: status_enum.Activo,
+          },
+        });
+
+        // CLIENT
+        const client = await tx.client.create({
+          data: {
+            id_user: newUser.id_user,
+            client_type: dto.client_type,
+            created_by_admin: true,
+            needs_password_change: true,
+            is_extra_data_completed: true,
+          },
+        });
+
+        // PARA CLIENTE EMPRESA
+        if (isCompany) {
+          await tx.clientCompany.create({
+            data: {
+              id_client: client.id_client,
+              company_name: dto.company_name,
+              contact_name: dto.contact_name,
+            },
+          });
+        }
+
+        return newUser;
+      });
+
+      // 5. Enviar credenciales
+      await this.temporalCredentialsQueue.add(
+        'sendTemporalCredentials',
+        {
+          to: dto.email,
+          email: dto.email,
+          password,
+        },
+        {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 2000 },
+        },
+      );
+
+      return user;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(
+        `Error creating client: ${error.message}`,
       );
     }
   }
