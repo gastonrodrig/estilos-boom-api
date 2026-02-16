@@ -26,7 +26,7 @@ export class CreateClientAdminDto {
   @ApiProperty({ example: 'Name' })
   @IsString()
   @IsOptional()
-  contact_person: string;
+  contact_name: string;
 
   @ApiProperty({ example: '1234567890' })
   @IsString()
