@@ -82,7 +82,7 @@ async function bootstrap() {
   if (process.env.NODE_ENV === 'production') {
     const swaggerUser = process.env.SWAGGER_USER;
     const swaggerPassword = process.env.SWAGGER_PASSWORD;
-    app.use('/api', expressBasicAuth({
+    app.use('/api/docs', expressBasicAuth({
       users: { [swaggerUser]: swaggerPassword },
       challenge: true,
       unauthorizedResponse: 'No autorizado',
@@ -106,7 +106,7 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('api/docs', app, document);
 
   /**
    * Start server
@@ -115,7 +115,7 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 
   logger.log(`App running on port ${port}`);
-  logger.log(`Swagger docs: http://localhost:${port}/api`);
+  logger.log(`Swagger docs: http://localhost:${port}/api/docs`);
 }
 
 bootstrap();
