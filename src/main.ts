@@ -72,7 +72,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'http://localhost:3000',
-      'https://estilos-boom-web.vercel.app'
+      'https://estilos-boom-web.vercel.app/'
     ],
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
