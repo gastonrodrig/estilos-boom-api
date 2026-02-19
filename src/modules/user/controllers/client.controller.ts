@@ -13,8 +13,8 @@ import {
   DefaultValuePipe,
   ParseIntPipe,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { FirebaseAuthGuard } from 'src/auth/guards';
+import { AuthRoles } from 'src/auth/decorators';
+import { FirebaseAuthGuard, RolesGuard } from 'src/auth/guards';
 import { ClientService } from '../services';
 import {
   CreateClientLandingDto,
@@ -32,44 +32,12 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { Public } from 'src/auth/decorators';
+import { Roles } from 'src/core/constants/app.constants';
 
 @ApiTags('Clients')
 @Controller('client')
 export class ClientController {
   constructor(private readonly clientService: ClientService) {}
-
-  @Post('/client-landing')
-  @Public()
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Crear un nuevo usuario' })
-  @ApiResponse({
-    status: HttpStatus.CREATED,
-    description: 'El usuario ha sido creado correctamente.',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Error al crear el usuario.',
-  })
-  @ApiOperation({ summary: 'Create client (landing)' })
-  create(@Body() dto: CreateClientLandingDto) {
-    return this.clientService.createClientLanding(dto);
-  }
-
-  @Get('find/:email')
-  @Public()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Obtener un usuario por Email' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'El usuario ha sido obtenido correctamente.',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Error al obtener el usuario.',
-  })
-  findByEmail(@Param('email') email: string) {
-    return this.clientService.findByEmail(email);
-  }
 
   @Get('validate-email/:email')
   @Public()
@@ -90,9 +58,8 @@ export class ClientController {
   }
 
   @Patch('reset-password-flag/:uid')
-  // @UseGuards(FirebaseAuthGuard)
-  // @ApiBearerAuth('firebase-auth')
-  @Public()
+  @ApiBearerAuth('firebase-auth')
+  @AuthRoles(Roles.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Resetear el flag de cambio de contraseña para un usuario',
@@ -128,8 +95,8 @@ export class ClientController {
   }
 
   @Patch('extra-data/:uid')
-  @UseGuards(FirebaseAuthGuard)
   @ApiBearerAuth('firebase-auth')
+  @AuthRoles(Roles.CLIENT)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Actualizar información extra de un usuario por uid',

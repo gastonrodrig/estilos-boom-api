@@ -12,6 +12,8 @@ import {
   API_VERSION,
   APP_DESCRIPTION,
 } from './core/constants/app.constants';
+import { LoggingInterceptor } from './core/interceptors';
+import { HttpExceptionFilter } from './core/filters';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -44,6 +46,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
   });
+
+  /**
+   * Global interceptors and filters
+   */
+  app.useGlobalInterceptors(new LoggingInterceptor());
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   /**
    * Reflector

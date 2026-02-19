@@ -27,6 +27,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/swagger": "^8.1.1",
+    "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^6.19.1",
     "@prisma/extension-optimize": "^2.0.1",
     "bullmq": "^5.67.3",

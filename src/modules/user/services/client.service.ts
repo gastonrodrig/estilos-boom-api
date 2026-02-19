@@ -60,7 +60,7 @@ export class ClientService {
             document_type: null,
             document_number: null,
 
-            role: Roles.CLIENTE,
+            role: Roles.CLIENT,
             status: Estado.ACTIVO,
           },
         });
@@ -86,10 +86,7 @@ export class ClientService {
         return { user, client };
       });
 
-      return {
-        message: 'Cliente creado correctamente',
-        data: result,
-      };
+      return result;
     } catch (error) {
       if (error instanceof HttpException) throw error;
 
@@ -170,7 +167,7 @@ export class ClientService {
       }
 
       // Validar que el usuario sea un cliente
-      if (user.role !== Roles.CLIENTE) {
+      if (user.role !== Roles.CLIENT) {
         throw new HttpException(
           {
             code: errorCodes.USER_IS_NOT_CLIENT,
