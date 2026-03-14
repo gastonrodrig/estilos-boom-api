@@ -118,7 +118,8 @@ export class ClientController {
   }
 
   @Post('client-admin')
-  @Public()
+  @ApiBearerAuth('firebase-auth')
+  @AuthRoles(Roles.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Registrar un nuevo cliente desde administrador' })
   @ApiResponse({
@@ -155,7 +156,7 @@ export class ClientController {
   @ApiQuery({
     name: 'clientType',
     required: false,
-    enum: ['Persona', 'Empresa'], // 👈 igual que Prisma
+    enum: ['Persona', 'Empresa'],
   })
   findAllCustomersPaginated(
     @Query('limit', new DefaultValuePipe(5), ParseIntPipe) limit: number,
@@ -175,22 +176,22 @@ export class ClientController {
     );
   }
 
-  // @Patch('client-admin/:id')
-  // @Public() 
-  // @HttpCode(HttpStatus.OK)
-  // @ApiOperation({ summary: 'Actualizar un usuario por ID' })
-  // @ApiResponse({
-  //   status: HttpStatus.OK,
-  //   description: 'El usuario ha sido actualizado correctamente.',
-  // })
-  // @ApiResponse({
-  //   status: HttpStatus.BAD_REQUEST,
-  //   description: 'Error al actualizar el usuario.',
-  // })
-  // update(
-  //   @Param('id') id: string,
-  //   @Body() updateClientAdminDto: UpdateClientAdminDto,
-  // ) {
-  //   return this.clientService.updateClientAdmin(id, updateClientAdminDto);
-  // }
+  @Patch('client-admin/:id')
+  @Public() 
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Actualizar un usuario por ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'El usuario ha sido actualizado correctamente.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Error al actualizar el usuario.',
+  })
+  update(
+    @Param('id') id: string,
+    @Body() updateClientAdminDto: UpdateClientAdminDto,
+  ) {
+    return this.clientService.updateClientAdmin(id, updateClientAdminDto);
+  }
 }

@@ -14,7 +14,7 @@ import { role_enum, status_enum, User } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { AuthService } from 'src/modules/firebase/services';
-import { UpdateExtraDataDto, CreateClientAdminDto } from '../dtos';
+import { UpdateExtraDataDto, CreateClientAdminDto, UpdateClientAdminDto } from '../dtos';
 import { client_type_enum } from '@prisma/client';
 import { generateRandomPassword } from 'src/core/utils';
 
@@ -478,6 +478,187 @@ export class ClientService {
       if (error instanceof HttpException) throw error;
       throw new InternalServerErrorException(
         `Error creating client: ${error.message}`,
+      );
+    }
+  }
+
+  async updateClientAdmin(
+    idUser: string,
+    dto: UpdateClientAdminDto,
+  ): Promise<User> {
+    try {
+      const currentUser = await this.prisma.user.findUnique({
+        where: { id_user: idUser },
+        include: {
+          client: {
+            include: {
+              client_company: true,
+            },
+          },
+        },
+      });
+
+      const isPerson = dto.client_type === client_type_enum.Persona;
+      const isCompany = dto.client_type === client_type_enum.Empresa;
+
+      // 1. Validaciones por tipo
+      if (isPerson) {
+        if (!dto.first_name || !dto.last_name) {
+          throw new HttpException(
+            { message: 'Nombre y apellido son requeridos para persona.' },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
+      if (isCompany) {
+        if (!dto.company_name || !dto.contact_name) {
+          throw new HttpException(
+            { message: 'Datos de empresa incompletos.' },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
+      // 2. Detectar cambios importantes
+      const emailChanged = dto.email !== currentUser.email;
+      const documentChanged =
+        dto.document_number &&
+        dto.document_number !== currentUser.document_number;
+
+      // 3. Validar email solo si cambió
+      if (emailChanged) {
+        const existingEmail = await this.prisma.user.findFirst({
+          where: {
+            email: dto.email,
+            NOT: {
+              id_user: idUser,
+            },
+          },
+        });
+
+        if (existingEmail) {
+          throw new HttpException(
+            {
+              code: errorCodes.EMAIL_ALREADY_EXISTS,
+              message: 'El correo ya fue registrado previamente.',
+            },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
+      // 4. Validar documento solo si cambió
+      if (documentChanged) {
+        const existingDoc = await this.prisma.user.findFirst({
+          where: {
+            document_number: dto.document_number,
+            NOT: {
+              id_user: idUser,
+            },
+          },
+        });
+
+        if (existingDoc) {
+          throw new HttpException(
+            {
+              code: errorCodes.DOCUMENT_NUMBER_ALREADY_EXISTS,
+              message: 'El número de documento ya fue registrado previamente.',
+            },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
+      // 5. Si cambió el correo, generar nueva contraseña temporal
+      let newPassword: string | null = null;
+
+      if (emailChanged) {
+        newPassword = generateRandomPassword();
+
+        const firebaseUpdate = await this.authService.updateUserEmail(
+          currentUser.auth_id,
+          { email: dto.email },
+        );
+
+        if (!firebaseUpdate.success) {
+          throw new InternalServerErrorException(
+            firebaseUpdate.message ||
+              'No se pudo actualizar el usuario en Firebase.',
+          );
+        }
+      }
+
+      // 6. Transacción BD
+      const updatedUser = await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.update({
+          where: { id_user: idUser },
+          data: {
+            email: dto.email,
+            first_name: dto.first_name,
+            last_name: dto.last_name,
+            phone: dto.phone,
+            document_type: dto.document_type,
+            document_number: dto.document_number,
+          },
+        });
+
+        const client = await tx.client.update({
+          where: { id_user: idUser },
+          data: {
+            client_type: dto.client_type,
+            needs_password_change: emailChanged
+              ? true
+              : currentUser.client.needs_password_change,
+          },
+        });
+
+        if (isCompany) {
+          await tx.clientCompany.upsert({
+            where: { id_client: client.id_client },
+            update: {
+              company_name: dto.company_name!,
+              contact_name: dto.contact_name!,
+            },
+            create: {
+              id_client: client.id_client,
+              company_name: dto.company_name!,
+              contact_name: dto.contact_name!,
+            },
+          });
+        }
+
+        if (isPerson && currentUser.client.client_company) {
+          await tx.clientCompany.delete({
+            where: { id_client: client.id_client },
+          });
+        }
+
+        return user;
+      });
+
+      // 7. Reenviar credenciales solo si cambió correo
+      if (emailChanged && newPassword) {
+        await this.temporalCredentialsQueue.add(
+          'sendTemporalCredentials',
+          {
+            to: dto.email,
+            email: dto.email,
+            password: newPassword,
+          },
+          {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 2000 },
+          },
+        );
+      }
+
+      return updatedUser;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+
+      throw new InternalServerErrorException(
+        `Error updating client: ${error.message}`,
       );
     }
   }
