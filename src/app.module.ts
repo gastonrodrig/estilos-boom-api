@@ -3,6 +3,7 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductModule } from './modules/product/product.module';
 import { UserModule } from './modules/user/user.module';
+import { CategoryModule } from './modules/category/category.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { MailModule } from './modules/mail/mail.module';
@@ -32,6 +33,7 @@ import { APP_GUARD } from '@nestjs/core';
     PrismaModule,
     ProductModule,
     UserModule,
+    CategoryModule,
   ],
   providers: [
     {

@@ -1,6 +1,3 @@
-// =====================
-// CONFIGURACIÓN
-// =====================
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,9 +7,102 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// =====================
-// ENUMS
-// =====================
+model User {
+  email           String              @unique
+  auth_id         String              @unique
+  created_at      DateTime            @default(now())
+  document_number String?             @unique
+  document_type   document_type_enum?
+  first_name      String?
+  id_user         String              @id @default(uuid())
+  last_name       String?
+  phone           String?
+  status          status_enum         @default(Activo)
+  updated_at      DateTime            @default(now()) @updatedAt
+  role            role_enum?
+  client          Client?
+  worker          Worker?
+}
+
+model Worker {
+  id_worker         String      @id @default(uuid())
+  id_user           String      @unique
+  role              worker_role
+  employment_status status_enum @default(Activo)
+  hired_at          DateTime    @default(now())
+  user              User        @relation(fields: [id_user], references: [id_user])
+}
+
+model Client {
+  id_client               String            @id @default(uuid())
+  id_user                 String            @unique
+  address                 String?
+  client_type             client_type_enum?
+  registered_at           DateTime          @default(now())
+  created_by_admin        Boolean           @default(false)
+  is_extra_data_completed Boolean           @default(false)
+  needs_password_change   Boolean           @default(true)
+  profile_picture         String?
+  user                    User              @relation(fields: [id_user], references: [id_user])
+  ClientAddress           ClientAddress[]
+  client_company          ClientCompany?
+}
+
+model ClientCompany {
+  id_client    String @id
+  company_name String
+  contact_name String
+  client       Client @relation(fields: [id_client], references: [id_client])
+}
+
+model Product {
+  id             String   @id @default(uuid())
+  name           String
+  description    String?
+  sku            String   @unique
+  price          Float
+  stock          Int
+  is_active      Boolean  @default(true)
+  
+  // Nuevos campos de Marketing
+  is_best_seller Boolean  @default(false)
+  is_new_in      Boolean  @default(true)
+  images         String[] // URLs de fotos
+
+  // Relación con Categoría
+  id_category    String
+  category       Category @relation(fields: [id_category], references: [id_category])
+
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now()) @updatedAt
+}
+
+model Category {
+  id_category  String    @id @default(uuid())
+  name         String    @unique
+  description  String?
+  is_active    Boolean   @default(true)
+  created_at   DateTime  @default(now())
+  
+  products     Product[] 
+}
+
+model ClientAddress {
+  id_address   String   @id
+  id_client    String
+  address_line String
+  reference    String?
+  department   String?
+  province     String?
+  district     String?
+  is_default   Boolean  @default(false)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now())
+  Client       Client   @relation(fields: [id_client], references: [id_client], onDelete: Cascade)
+
+  @@index([id_client])
+}
+
 enum status_enum {
   Activo
   Inactivo
@@ -37,83 +127,4 @@ enum role_enum {
   Administrador
   Cliente
   Trabajador
-}
-
-// =====================
-// USER
-// =====================
-model User {
-  id_user          String             @id @default(uuid())
-  auth_id          String             @unique
-  email            String             @unique
-
-  phone            String?
-  first_name       String?
-  last_name        String?
-  document_type    document_type_enum?
-  document_number  String?            @unique
-  role             role_enum?
-
-  status           status_enum         @default(Activo)
-  created_at       DateTime            @default(now())
-  updated_at       DateTime            @default(now()) @updatedAt
-
-  worker           Worker?
-  client           Client?
-}
-
-// =====================
-// WORKER
-// =====================
-model Worker {
-  id_worker          String      @id @default(uuid())
-  id_user            String      @unique
-  role               worker_role
-  employment_status  status_enum @default(Activo)
-  hired_at           DateTime    @default(now())
-
-  user               User        @relation(fields: [id_user], references: [id_user])
-}
-
-// =====================
-// CLIENT
-// =====================
-model Client {
-  id_client               String          @id @default(uuid())
-  id_user                 String          @unique
-  address                 String?
-  profile_picture         String?
-  client_type             client_type_enum?
-  needs_password_change   Boolean @default(true)
-  created_by_admin        Boolean @default(false)
-  is_extra_data_completed Boolean @default(false)
-  registered_at           DateTime        @default(now())
-
-  user           User            @relation(fields: [id_user], references: [id_user])
-  client_company ClientCompany?
-}
-
-// =====================
-// CLIENT COMPANY 
-// =====================
-model ClientCompany {
-  id_client           String  @id
-  company_name        String
-  contact_name        String
-  client              Client  @relation(fields: [id_client], references: [id_client])
-}
-
-// =====================
-// PRODUCT
-// =====================
-model Product {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  sku         String   @unique
-  price       Float
-  stock       Int
-  is_active   Boolean  @default(true)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @default(now()) @updatedAt
 }
