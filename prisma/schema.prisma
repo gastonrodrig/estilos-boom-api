@@ -56,35 +56,49 @@ model ClientCompany {
 }
 
 model Product {
-  id             String   @id @default(uuid())
+  id_product     String           @id @default(uuid())
   name           String
   description    String?
-  sku            String   @unique
-  price          Float
-  stock          Int
-  is_active      Boolean  @default(true)
-  
-  // Nuevos campos de Marketing
-  is_best_seller Boolean  @default(false)
-  is_new_in      Boolean  @default(true)
-  images         String[] // URLs de fotos
+  sku            String           @unique // SKU Padre (ej: POL-BASIC)
+  base_price     Float            // Precio base para todas las variantes
+  is_active      Boolean          @default(true)
+  is_best_seller Boolean          @default(false)
+  is_new_in      Boolean          @default(true)
+  images         String[]       
 
   // Relación con Categoría
   id_category    String
-  category       Category @relation(fields: [id_category], references: [id_category])
+  category       Category         @relation(fields: [id_category], references: [id_category])
+
+  // Un producto tiene muchas variantes
+  variants       ProductVariant[]
+
+  created_at     DateTime         @default(now())
+  updated_at     DateTime         @default(now()) @updatedAt
+}
+
+model ProductVariant {
+  id_variant     String   @id @default(uuid())
+  size           String   // "S", "M", "L", etc.
+  color          String   // "Rojo", "Azul", etc.
+  stock          Int      @default(0)
+  sku_variant    String   @unique // SKU específico (ej: POL-BASIC-S-RED)
+  
+  id_product     String
+  product        Product  @relation(fields: [id_product], references: [id_product], onDelete: Cascade)
 
   created_at     DateTime @default(now())
-  updated_at     DateTime @default(now()) @updatedAt
+  updated_at     DateTime @updatedAt
 }
 
 model Category {
-  id_category  String    @id @default(uuid())
-  name         String    @unique
-  description  String?
-  is_active    Boolean   @default(true)
-  created_at   DateTime  @default(now())
+  id_category String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  is_active   Boolean   @default(true)
+  created_at  DateTime  @default(now())
   
-  products     Product[] 
+  products    Product[]
 }
 
 model ClientAddress {

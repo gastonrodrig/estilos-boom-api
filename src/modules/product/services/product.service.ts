@@ -1,91 +1,164 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { StorageService } from 'src/modules/firebase/services';
 import { CreateProductDto } from '../dto/create-product.dto';
-import { Product } from '@prisma/client';
-
 
 @Injectable()
-export class ProductService {     
-  constructor(private readonly prisma: PrismaService) {}
+export class ProductService {   
+  constructor(private readonly prisma: PrismaService,
+    private readonly storageService: StorageService,) {}
 
-  async create(dto: CreateProductDto): Promise<Product> {
-    // 1. Verificamos SKU único
-    const exists = await this.prisma.product.findUnique({
-      where: { sku: dto.sku },
-    });
+  async create(createProductDto: CreateProductDto, files: Express.Multer.File[]) {
+    const { variants, ...productData } = createProductDto;
+    let imageUrls: string[] = [];
 
-    if (exists) {
-      throw new ConflictException('Este SKU ya está registrado');
-    }
+    try {
+      // 1. Subir imágenes a Firebase si existen
+      if (files && files.length > 0) {
+        const uploadedImages = await this.storageService.uploadMultipleFiles(
+          'products', // ubicación principal
+          files, 
+          createProductDto.sku // carpeta con el nombre del SKU para orden
+        );
+        imageUrls = uploadedImages.map((img: any) => img.url);
+      }
 
-    // 2. Creamos con relación a Categoría y nuevos campos
-    return this.prisma.product.create({
-      data: {
-        name: dto.name,
-        description: dto.description,
-        sku: dto.sku,
-        price: dto.price,
-        stock: dto.stock,
-        // AQUÍ ESTÁ LA SOLUCIÓN: Conectamos con la categoría
-        category: {
-          connect: { id_category: dto.categoryId } 
+      // 2. Crear producto en la DB con las URLs de Firebase
+      return await this.prisma.product.create({
+        data: {
+          ...productData,
+          images: imageUrls, // Guardamos el array de URLs
+          variants: {
+            create: variants, 
+          },
         },
-        // También añade estos si los pusiste en el schema:
-        is_best_seller: dto.isBestSeller ?? false,
-        is_new_in: dto.isNewIn ?? true,
-        images: dto.images ?? [],
-      },
-      include: { category: true } // Para que devuelva la categoría en la respuesta
-    });
+        include: {
+          variants: true, 
+          category: true,
+        },
+      });
+    } catch (error) {
+      // Si falla la DB, podríamos opcionalmente borrar las fotos de Firebase aquí
+      console.error(error);
+      throw new BadRequestException('Error al crear el producto. Verifica los datos.');
+    }
   }
 
-  async findAll(categoryName?: string, section?: string): Promise<Product[]> {
-    let where: any = { is_active: true };
+  async findAll(query: any) {
+  const { category, section, maxPrice, colors } = query;
+  
+  let where: any = { is_active: true };
 
-    // Filtro por nombre de categoría (ej: "Dresses")
-    if (categoryName) {
-      where.category = { name: categoryName };
-    }
+  // Filtro por Categoría y Sección (lo que ya tenías)
+  if (category) where.category = { name: category };
+  if (section === 'best-seller') where.is_best_seller = true;
+  if (section === 'new-in') where.is_new_in = true;
 
-    // Filtro por sección (Marketing)
-    if (section === 'best-seller') {
-      where.is_best_seller = true;
-    }
+  // NUEVO: Filtro por Precio
+  if (maxPrice) {
+    where.base_price = { lte: maxPrice }; // lte = "Menor o igual a"
+  }
+
+  // NUEVO: Filtro por Color (Relación con Variantes)
+  if (colors) {
+    // Convertimos a array si llega como un solo string
+    const colorList = Array.isArray(colors) ? colors : [colors];
     
-    if (section === 'new-in') {
-      where.is_new_in = true;
-    }
-
-    return this.prisma.product.findMany({
-      where,
-      orderBy: { created_at: 'desc' },
-      include: { category: true }, // Importante para ver la categoría en el front
-      take: 20, // Tu escudo de seguridad que hablamos
-    });
+    where.variants = {
+      some: { // "Que al menos una variante cumpla con..."
+        color: { in: colorList }
+      }
+    };
   }
 
-  async findOne(id: string): Promise<Product> {
+  return this.prisma.product.findMany({
+    where,
+    include: { category: true, variants: true },
+    orderBy: { created_at: 'desc' }
+  });
+}
+
+  async findOne(id: string) {
     const product = await this.prisma.product.findUnique({
-      where: { id },
+      where: { id_product: id }, // <--- Usamos id_product según tu schema
+      include: { 
+        variants: true, 
+        category: true 
+      },
     });
 
-    if (!product) {
-      throw new NotFoundException('Product not found');
-    }
-
+    if (!product) throw new NotFoundException('Producto no encontrado en Estilos Boom');
     return product;
   }
 
-  async updateStock(id: string, stock: number): Promise<Product> {
-    return this.prisma.product.update({
-      where: { id },
-      data: { stock },
+  async update(id: string, updateProductDto: any, files: Express.Multer.File[]) {
+  // 1. Buscamos el producto actual para obtener las rutas de las fotos viejas
+  const currentProduct = await this.findOne(id);
+  
+  const { variants, ...productData } = updateProductDto;
+  let finalImageUrls = currentProduct.images;
+
+  try {
+    // 2. ¿Hay fotos nuevas? -> BORRAMOS LAS ANTERIORES Y SUBIMOS LAS NUEVAS
+    if (files && files.length > 0) {
+      // Borramos físicamente de Firebase usando las URLs guardadas
+      if (currentProduct.images && currentProduct.images.length > 0) {
+        await this.storageService.deleteFiles(currentProduct.images);
+      }
+
+      // Subimos el nuevo set de imágenes
+      const uploadedImages = await this.storageService.uploadMultipleFiles(
+        'products',
+        files,
+        productData.sku || currentProduct.sku // Usamos el SKU nuevo o el que ya tenía
+      );
+      
+      finalImageUrls = uploadedImages.map((img: any) => img.url);
+    }
+
+    // 3. Actualización atómica en la Base de Datos
+    return await this.prisma.product.update({
+      where: { id_product: id },
+      data: {
+        ...productData,
+        images: finalImageUrls,
+        // Si se envían variantes, reemplazamos el set completo
+        ...(variants && {
+          variants: {
+            deleteMany: {}, // Limpieza total de variantes viejas
+            create: variants, // Inserción de las nuevas
+          },
+        }),
+      },
+      include: {
+        variants: true,
+        category: true,
+      },
+    });
+
+  } catch (error) {
+    console.error("Error en Update Product:", error);
+    throw new BadRequestException('No se pudo actualizar el producto. Verifica los datos o SKUs duplicados.');
+  }
+}
+
+  // --- NUEVA LÓGICA DE STOCK ---
+  async updateVariantStock(idVariant: string, newStock: number) {
+    const variant = await this.prisma.productVariant.findUnique({
+      where: { id_variant: idVariant }
+    });
+
+    if (!variant) throw new NotFoundException('La variante de producto no existe');
+
+    return this.prisma.productVariant.update({
+      where: { id_variant: idVariant },
+      data: { stock: newStock },
     });
   }
 
-  async deactivate(id: string): Promise<Product> {
+  async deactivate(id: string) {
     return this.prisma.product.update({
-      where: { id },
+      where: { id_product: id }, // <--- Corregido a id_product
       data: { is_active: false },
     });
   }

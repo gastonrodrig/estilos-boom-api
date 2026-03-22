@@ -1,17 +1,35 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsNumber,
-  IsInt,
-  Min,
-  IsBoolean, // Importante para los checks
-  IsArray
+import { 
+  IsString, IsNotEmpty, IsOptional, IsNumber, 
+  IsBoolean, IsArray, ValidateNested 
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+// 1. Definimos el DTO de la variante aquí mismo o lo importamos
+export class CreateProductVariantDto {
+  @ApiProperty({ example: 'S' })
+  @IsString()
+  @IsNotEmpty()
+  size: string;
+
+  @ApiProperty({ example: 'Negro' })
+  @IsString()
+  @IsNotEmpty()
+  color: string;
+
+  @ApiProperty({ example: 10 })
+  @IsNumber()
+  @IsNotEmpty()
+  stock: number;
+
+  @ApiProperty({ example: 'EB-POL-001-S-BLK' })
+  @IsString()
+  @IsNotEmpty()
+  sku_variant: string;
+}
 
 export class CreateProductDto {
-  @ApiProperty({ example: 'Vestido Seda Rosa', description: 'Nombre del producto' })
+  @ApiProperty({ example: 'Vestido Seda Rosa' })
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -21,40 +39,39 @@ export class CreateProductDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ example: 'EB-VES-001', description: 'Código único de inventario' })
+  @ApiProperty({ example: 'EB-VES-001' })
   @IsString()
   @IsNotEmpty()
   sku: string;
 
-  @ApiProperty({ example: 149.90 })
+  @ApiProperty({ example: 59.90 })
   @IsNumber()
-  @Min(0)
-  price: number;
+  base_price: number; // Cambiamos price por base_price según tu Prisma
 
-  @ApiProperty({ example: 50 })
-  @IsInt()
-  @Min(0)
-  stock: number;
-
-  // --- LAS PROPIEDADES QUE FALTABAN ---
-
-  @ApiProperty({ example: 'uuid-de-la-categoria', description: 'ID de la categoría relacionada' })
+  @ApiProperty({ example: 'uuid-de-la-categoria' })
   @IsString()
   @IsNotEmpty()
-  categoryId: string; // Esto conecta con tu tabla de categorías
+  id_category: string; // Cambiado para que coincida con tu esquema de Prisma
 
   @ApiProperty({ example: true, default: false })
   @IsBoolean()
   @IsOptional()
-  isBestSeller?: boolean;
+  is_best_seller?: boolean; // Usamos snake_case para que coincida con Prisma
 
   @ApiProperty({ example: true, default: true })
   @IsBoolean()
   @IsOptional()
-  isNewIn?: boolean;
+  is_new_in?: boolean; // Usamos snake_case para que coincida con Prisma
 
-  @ApiProperty({ example: ['url1.jpg', 'url2.jpg'], description: 'Links de fotos en Firebase' })
+  @ApiProperty({ example: ['url1.jpg', 'url2.jpg'] })
   @IsArray()
   @IsOptional()
   images?: string[];
+
+  // 2. AGREGAMOS LAS VARIANTES
+  @ApiProperty({ type: [CreateProductVariantDto], description: 'Lista de tallas y colores' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateProductVariantDto)
+  variants: CreateProductVariantDto[];
 }
