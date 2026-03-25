@@ -403,10 +403,32 @@ export class ClientService {
         );
       }
 
-      // 3. Password
+      // 3. Direcciones
+      const addresses = dto.addresses ?? [];
+      const defaultAddresses = addresses.filter((address) => address.is_default);
+
+      if (defaultAddresses.length > 1) {
+        throw new HttpException(
+          {
+            message: 'Solo una dirección puede marcarse como predeterminada.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const normalizedAddresses =
+        addresses.length > 0
+          ? addresses.map((address, index) => ({
+              ...address,
+              is_default:
+                defaultAddresses.length === 0 ? index === 0 : !!address.is_default,
+            }))
+          : [];
+
+      // 4. Password
       const password = generateRandomPassword();
 
-      // 4. Firebase
+      // 5. Firebase
       const firebaseUser = await this.authService.createUserWithEmail({
         email: dto.email,
         password,
@@ -416,7 +438,7 @@ export class ClientService {
         throw new InternalServerErrorException(firebaseUser.message);
       }
 
-      // 5. Transacción
+      // 6. Transacción
       const user = await this.prisma.$transaction(async (tx) => {
 
         // USER
@@ -456,10 +478,25 @@ export class ClientService {
           });
         }
 
+        // DIRECCIONES
+        if (normalizedAddresses.length > 0) {
+          await tx.clientAddress.createMany({
+            data: normalizedAddresses.map((address) => ({
+              id_client: client.id_client,
+              address_line: address.address_line,
+              reference: address.reference ?? null,
+              department: address.department ?? null,
+              province: address.province ?? null,
+              district: address.district ?? null,
+              is_default: !!address.is_default,
+            })),
+          });
+        }
+
         return newUser;
       });
 
-      // 5. Enviar credenciales
+      // 7. Enviar credenciales
       await this.temporalCredentialsQueue.add(
         'sendTemporalCredentials',
         {

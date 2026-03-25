@@ -1,6 +1,16 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { document_type_enum, client_type_enum } from '@prisma/client';
+import { CreateClientAddressAdminDto } from './create-client-address-admin.dto';
 
 export class CreateClientAdminDto {
   @ApiProperty({ example: 'user@example.com' })
@@ -8,43 +18,65 @@ export class CreateClientAdminDto {
   @IsNotEmpty()
   email: string;
 
-  @ApiProperty({ example: 'John' })
+  @ApiPropertyOptional({ example: 'John' })
   @IsString()
   @IsOptional()
-  first_name: string;
+  first_name?: string;
 
-  @ApiProperty({ example: 'Doe' })
+  @ApiPropertyOptional({ example: 'Doe' })
   @IsString()
   @IsOptional()
-  last_name: string;
+  last_name?: string;
 
-  @ApiProperty({ example: 'URP' })
+  @ApiPropertyOptional({ example: 'URP SAC' })
   @IsString()
   @IsOptional()
-  company_name: string;
+  company_name?: string;
 
-  @ApiProperty({ example: 'Name' })
+  @ApiPropertyOptional({ example: 'Juan Pérez' })
   @IsString()
   @IsOptional()
-  contact_name: string;
+  contact_name?: string;
 
-  @ApiProperty({ example: '1234567890' })
+  @ApiPropertyOptional({ example: '987654321' })
   @IsString()
   @IsOptional()
-  phone: string;
+  phone?: string;
 
   @ApiProperty({ enum: client_type_enum, example: client_type_enum.Persona })
   @IsEnum(client_type_enum)
   @IsNotEmpty()
   client_type: client_type_enum;
 
-  @ApiProperty({ enum: document_type_enum, example: document_type_enum.DNI, required: false })
+  @ApiPropertyOptional({
+    enum: document_type_enum,
+    example: document_type_enum.DNI,
+  })
   @IsEnum(document_type_enum)
   @IsOptional()
   document_type?: document_type_enum;
 
-  @ApiProperty({ example: '12345678', required: false })
+  @ApiPropertyOptional({ example: '12345678' })
   @IsString()
   @IsOptional()
-  document_number?: string; 
+  document_number?: string;
+
+  @ApiPropertyOptional({
+    type: [CreateClientAddressAdminDto],
+    example: [
+      {
+        address_line: 'Av. Larco 123, Dpto 402',
+        reference: 'Frente al parque Kennedy',
+        department: 'Lima',
+        province: 'Lima',
+        district: 'Miraflores',
+        is_default: true,
+      },
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateClientAddressAdminDto)
+  addresses?: CreateClientAddressAdminDto[];
 }
