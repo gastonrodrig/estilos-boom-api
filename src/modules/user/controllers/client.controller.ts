@@ -37,7 +37,7 @@ import { Roles } from 'src/core/constants/app.constants';
 @ApiTags('Clients')
 @Controller('client')
 export class ClientController {
-  constructor(private readonly clientService: ClientService) {}
+  constructor(private readonly clientService: ClientService) { }
 
   @Get('validate-email/:email')
   @Public()
@@ -175,22 +175,22 @@ export class ClientController {
     );
   }
 
-  // @Patch('client-admin/:id')
-  // @Public() 
-  // @HttpCode(HttpStatus.OK)
-  // @ApiOperation({ summary: 'Actualizar un usuario por ID' })
-  // @ApiResponse({
-  //   status: HttpStatus.OK,
-  //   description: 'El usuario ha sido actualizado correctamente.',
-  // })
-  // @ApiResponse({
-  //   status: HttpStatus.BAD_REQUEST,
-  //   description: 'Error al actualizar el usuario.',
-  // })
-  // update(
-  //   @Param('id') id: string,
-  //   @Body() updateClientAdminDto: UpdateClientAdminDto,
-  // ) {
-  //   return this.clientService.updateClientAdmin(id, updateClientAdminDto);
-  // }
+  @Patch('client-admin/:id')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Actualizar un usuario por ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'El usuario ha sido actualizado correctamente.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Error al actualizar el usuario.',
+  })
+  update(
+    @Param('id') id: string,
+    @Body() updateClientAdminDto: UpdateClientAdminDto,
+  ) {
+    return this.clientService.updateClientAdmin(id, updateClientAdminDto);
+  }
 }

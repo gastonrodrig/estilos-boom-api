@@ -14,7 +14,7 @@ import { role_enum, status_enum, User } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { AuthService } from 'src/modules/firebase/services';
-import { UpdateExtraDataDto, CreateClientAdminDto } from '../dtos';
+import { UpdateExtraDataDto, CreateClientAdminDto, UpdateClientAdminDto } from '../dtos';
 import { client_type_enum } from '@prisma/client';
 import { generateRandomPassword } from 'src/core/utils';
 
@@ -27,7 +27,7 @@ export class ClientService {
     private forgotPasswordQueue: Queue,
     @InjectQueue('temporal-credentials')
     private temporalCredentialsQueue: Queue,
-  ) {}
+  ) { }
 
   async createClientLanding(dto: CreateClientLandingDto) {
     try {
@@ -378,8 +378,8 @@ export class ClientService {
         this.prisma.user.findUnique({ where: { email: dto.email } }),
         dto.document_number
           ? this.prisma.user.findUnique({
-              where: { document_number: dto.document_number },
-            })
+            where: { document_number: dto.document_number },
+          })
           : null,
       ]);
 
@@ -478,6 +478,84 @@ export class ClientService {
       if (error instanceof HttpException) throw error;
       throw new InternalServerErrorException(
         `Error creating client: ${error.message}`,
+      );
+    }
+  }
+
+  async updateClientAdmin(id: string, dto: UpdateClientAdminDto): Promise<User> {
+    try {
+      const currentUser = await this.prisma.user.findUnique({
+        where: { id_user: id },
+        include: { client: true },
+      });
+
+      if (!currentUser) {
+        throw new HttpException('Cliente no encontrado', HttpStatus.NOT_FOUND);
+      }
+
+      if (dto.email && dto.email !== currentUser.email) {
+        const emailExists = await this.prisma.user.findUnique({
+          where: { email: dto.email },
+        });
+        if (emailExists) {
+          throw new BadRequestException('El nuevo correo ya está registrado.');
+        }
+
+        const firebaseUpdate = await this.authService.updateUserEmail(
+          currentUser.auth_id,
+          { email: dto.email },
+        );
+        if (!firebaseUpdate.success) {
+          throw new InternalServerErrorException(
+            `Error actualizando identidad: ${firebaseUpdate.message}`,
+          );
+        }
+      }
+
+      const isCompany = dto.client_type === client_type_enum.Empresa;
+
+      return await this.prisma.$transaction(async (tx) => {
+        const updatedUser = await tx.user.update({
+          where: { id_user: id },
+          data: {
+            email: dto.email,
+            first_name: dto.first_name,
+            last_name: dto.last_name,
+            phone: dto.phone,
+            document_type: dto.document_type,
+            document_number: dto.document_number,
+            status: dto.status as status_enum,
+          },
+        });
+
+        if (dto.client_type) {
+          const client = await tx.client.update({
+            where: { id_user: id },
+            data: { client_type: dto.client_type as client_type_enum },
+          });
+
+          if (isCompany) {
+            await tx.clientCompany.upsert({
+              where: { id_client: client.id_client },
+              create: {
+                id_client: client.id_client,
+                company_name: dto.company_name ?? '',
+                contact_name: dto.contact_name ?? '',
+              },
+              update: {
+                company_name: dto.company_name,
+                contact_name: dto.contact_name,
+              },
+            });
+          }
+        }
+
+        return updatedUser;
+      });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(
+        `Error al actualizar cliente: ${error.message}`,
       );
     }
   }
