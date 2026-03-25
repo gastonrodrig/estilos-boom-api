@@ -89,8 +89,9 @@ model Client {
   is_extra_data_completed Boolean @default(false)
   registered_at           DateTime        @default(now())
 
-  user           User            @relation(fields: [id_user], references: [id_user])
-  client_company ClientCompany?
+  user                    User             @relation(fields: [id_user], references: [id_user])
+  client_company          ClientCompany?
+  addresses               ClientAddress[]
 }
 
 // =====================
@@ -101,6 +102,26 @@ model ClientCompany {
   company_name        String
   contact_name        String
   client              Client  @relation(fields: [id_client], references: [id_client])
+}
+
+// =====================
+// CLIENT ADDRESS
+// =====================
+model ClientAddress {
+  id_address      String   @id @default(uuid())
+  id_client       String
+  address_line    String
+  reference       String?
+  department      String?
+  province        String?
+  district        String?
+  is_default      Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now()) @updatedAt
+
+  client          Client   @relation(fields: [id_client], references: [id_client], onDelete: Cascade)
+
+  @@index([id_client])
 }
 
 // =====================
