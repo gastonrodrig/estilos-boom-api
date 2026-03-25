@@ -154,7 +154,6 @@ export class ClientService {
 
   async sendPasswordResetEmail(email: string): Promise<void> {
     try {
-      // Validar que el cliente exista
       const user = await this.prisma.user.findUnique({ where: { email } });
       if (!user) {
         throw new HttpException(
@@ -166,7 +165,6 @@ export class ClientService {
         );
       }
 
-      // Validar que el usuario sea un cliente
       if (user.role !== Roles.CLIENT) {
         throw new HttpException(
           {
@@ -177,7 +175,6 @@ export class ClientService {
         );
       }
 
-      // Usar Firebase Admin SDK para generar el enlace
       const resetLink = await this.authService.generatePasswordResetLink(email);
 
       await this.forgotPasswordQueue.add(
@@ -459,7 +456,7 @@ export class ClientService {
         return newUser;
       });
 
-      // 5. Enviar credenciales
+      // 5. Enviar credenciales vía cola
       await this.temporalCredentialsQueue.add(
         'sendTemporalCredentials',
         {
@@ -470,6 +467,8 @@ export class ClientService {
         {
           attempts: 3,
           backoff: { type: 'exponential', delay: 2000 },
+          removeOnComplete: 1000,
+          removeOnFail: 100,
         },
       );
 

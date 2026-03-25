@@ -5,7 +5,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { AuthService } from '../firebase/services';
 
 @Module({
-    imports: [
+  imports: [
     BullModule.registerQueue(
       { name: 'forgot-password' },
       { name: 'temporal-credentials' },
@@ -14,4 +14,4 @@ import { AuthService } from '../firebase/services';
   controllers: [ClientController],
   providers: [ClientService, AuthService],
 })
-export class UserModule {}
+export class UserModule { }
