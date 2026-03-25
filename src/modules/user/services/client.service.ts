@@ -25,6 +25,8 @@ export class ClientService {
     private authService: AuthService,
     @InjectQueue('forgot-password')
     private forgotPasswordQueue: Queue,
+    @InjectQueue('security-notifications')
+    private securityQueue: Queue,
     @InjectQueue('temporal-credentials')
     private temporalCredentialsQueue: Queue,
   ) { }
@@ -509,6 +511,22 @@ export class ClientService {
             `Error actualizando identidad: ${firebaseUpdate.message}`,
           );
         }
+
+        // --- NOTIFICACIÓN DE SEGURIDAD (AL CORREO ORIGINAL) ---
+        await this.securityQueue.add(
+          'sendEmailChangeNotification',
+          {
+            to: currentUser.email, // Correo original
+            oldEmail: currentUser.email,
+            newEmail: dto.email,
+          },
+          {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 2000 },
+            removeOnComplete: 1000,
+            removeOnFail: 100,
+          },
+        );
       }
 
       const isCompany = dto.client_type === client_type_enum.Empresa;

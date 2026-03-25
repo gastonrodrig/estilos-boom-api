@@ -9,6 +9,7 @@ import { AuthService } from '../firebase/services';
     BullModule.registerQueue(
       { name: 'forgot-password' },
       { name: 'temporal-credentials' },
+      { name: 'security-notifications' },
     ),
   ],
   controllers: [ClientController],
