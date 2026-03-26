@@ -15,7 +15,7 @@ export class Category {
   description: string;
 
   @Prop({ default: true })
-  is_active: boolean;
+  status: boolean;
 }
 
 export const CategorySchema = SchemaFactory.createForClass(Category);

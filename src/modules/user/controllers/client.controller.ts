@@ -91,7 +91,8 @@ export class ClientController {
   }
 
   @Get('customers-paginated')
-  @Public()
+  @ApiBearerAuth('firebase-auth')
+  @AuthRoles(Roles.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Obtener clientes con paginación, búsqueda y orden',

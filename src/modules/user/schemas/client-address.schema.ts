@@ -3,7 +3,10 @@ import { Document, Types } from 'mongoose';
 
 export type ClientAddressDocument = ClientAddress & Document;
 
-@Schema({ timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } })
+@Schema({
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+  collection: 'ClientAddress',
+})
 export class ClientAddress {
   @Prop({ type: Types.ObjectId, ref: 'Client', required: true })
   id_client: Types.ObjectId;

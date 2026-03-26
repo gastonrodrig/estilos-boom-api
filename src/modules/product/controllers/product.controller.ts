@@ -6,14 +6,16 @@ import {
 } from '@nestjs/common';
 import { ProductService } from '../services';
 import { CreateProductDto } from '../dto';
-import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { Public } from 'src/auth/decorators';
 import { FilesInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Products')
+@ApiBearerAuth('firebase-auth')
 @Controller('products')
 export class ProductController {
   constructor(private readonly productService: ProductService) { }
+  
   @ApiOperation({ summary: 'Crear un producto con sus variantes e imágenes' })
   @Public()
   @Post()

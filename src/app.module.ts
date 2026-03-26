@@ -9,6 +9,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { MailModule } from './modules/mail/mail.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
+import { FirebaseAuthGuard } from './auth/guards/firebase-auth.guard';
 
 @Module({
   imports: [
@@ -42,6 +43,10 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
     FirebaseModule
   ],
   providers: [
+    {
+      provide: APP_GUARD,
+      useClass: FirebaseAuthGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

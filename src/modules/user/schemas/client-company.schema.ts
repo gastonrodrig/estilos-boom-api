@@ -4,6 +4,7 @@ import { Document, Types } from 'mongoose';
 export type ClientCompanyDocument = ClientCompany & Document;
 
 @Schema({
+  timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
   collection: 'ClientCompany',
 })
 export class ClientCompany {
