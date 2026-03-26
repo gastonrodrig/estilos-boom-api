@@ -14,3 +14,8 @@ export enum Estado {
   ACTIVO = 'Activo',
   INACTIVO = 'Inactivo'
 }
+
+export enum DocType {
+  DNI = 'DNI',
+  RUC = 'RUC'
+}

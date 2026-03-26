@@ -8,30 +8,13 @@ import {
 
 @Injectable()
 export class MailService {
-  private oauth2Client;
-  private transporter;
+  private transporter: nodemailer.Transporter;
 
-  constructor(
-  ) {
-    this.oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI,
-    );
-
-    this.oauth2Client.setCredentials({
-      refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
-    });
-
+  constructor() {
     this.setupTransporter();
   }
 
-  private async setupTransporter() {
-    const accessToken = await this.oauth2Client.getAccessToken();
-    if (!accessToken) {
-      throw new Error('Failed to retrieve access token');
-    }
-
+  private setupTransporter() {
     this.transporter = nodemailer.createTransport({
       host: 'smtp.gmail.com',
       port: 465,
@@ -41,6 +24,55 @@ export class MailService {
         pass: process.env.GMAIL_APP_PASSWORD,
       },
     });
+  }
+
+  async sendEmailChangeNotification(to: string, oldEmail: string, newEmail: string) {
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      to,
+      subject: 'Alerta de Seguridad: Cambio de correo electrónico - Estilos Boom',
+      html: `
+       <html>
+  <head></head>
+  <body style="margin:0; padding:0; background:#ffffff; font-family: Arial, sans-serif;">
+    <div style="max-width:560px; margin:24px auto; background:#ffffff; border:1px solid #C1BFC0;">
+      <!-- Header -->
+      <div style="padding:32px 24px; text-align:center;">
+        <img src="https://i.postimg.cc/GtGzCjqh/meta-icon.png" alt="Estilos Boom" width="64" style="display:block; margin:0 auto 16px;"/>
+        <h1 style="margin:0; font-size:24px; color:#252020; font-weight:700;">Seguridad de la cuenta</h1>
+      </div>
+      <hr style="border:none; border-top:1px solid #C1BFC0; margin:0 24px;">
+      <!-- Content -->
+      <div style="padding:32px 24px;">
+        <p style="color:#252020; font-size:16px; margin-top:0;"><strong>Hola,</strong></p>
+        <p style="color:#252020; font-size:16px; line-height:1.6;">
+          Te informamos que la dirección de correo electrónico asociada a tu cuenta ha sido cambiada recientemente.
+        </p>
+        <div style="background:#f9f9f9; padding:16px; border-radius:6px; margin:24px 0;">
+          <p style="margin:0; font-size:14px; color:#666;">Correo anterior:</p>
+          <p style="margin:4px 0 16px 0; font-weight:bold; color:#252020;">${oldEmail}</p>
+          <p style="margin:0; font-size:14px; color:#666;">Correo nuevo:</p>
+          <p style="margin:4px 0 0 0; font-weight:bold; color:#252020;">${newEmail}</p>
+        </div>
+        <p style="color:#252020; font-size:14px; line-height:1.6; color:#d93025; font-weight:bold;">
+          Si no fuiste tú quien realizó este cambio, por favor ponte en contacto con nuestro equipo de soporte de inmediato o intenta restablecer tu contraseña desde la página principal.
+        </p>
+      </div>
+      <!-- Footer -->
+      <div style="background:#f2b6c1; padding:20px 24px;">
+        <p style="margin:0; font-size:13px; color:#252020;">Saludos,<br> <strong>Equipo Estilos Boom</strong></p>
+      </div>
+    </div>
+  </body>
+</html>
+      `,
+    };
+
+    try {
+      return await this.transporter.sendMail(mailOptions);
+    } catch (error) {
+      throw new Error(`Failed to send email change notification: ${error.message}`);
+    }
   }
 
   async sendPasswordResetLink(dto: CreatePasswordResetLinkMailDto) {

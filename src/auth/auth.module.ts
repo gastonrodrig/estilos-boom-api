@@ -1,24 +1,14 @@
-import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
-import { PrismaModule } from 'src/prisma/prisma.module';
-import { AuthController } from './controllers';
-import { AuthService } from './services';
-import { FirebaseAuthGuard, RolesGuard } from './guards';
+import { Module, forwardRef } from '@nestjs/common';
+import { UserModule } from '../modules/user/user.module';
+import { UserSyncService } from './services/user-sync.service';
+import { AuthController } from './controllers/auth.controller';
 
 @Module({
-  imports: [PrismaModule],
-  controllers: [AuthController],
-  providers: [
-    AuthService,
-    {
-      provide: APP_GUARD,
-      useClass: FirebaseAuthGuard,
-    },
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard,
-    },
+  imports: [
+    forwardRef(() => UserModule),
   ],
-  exports: [AuthService],
+  controllers: [AuthController],
+  providers: [UserSyncService],
+  exports: [UserSyncService],
 })
-export class AuthModule {}
+export class AuthModule { }

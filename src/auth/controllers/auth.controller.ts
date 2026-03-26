@@ -1,15 +1,14 @@
 import { Controller, Post, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { AuthService } from '../services/auth.service';
-import { Public } from '../decorators';
+import { UserSyncService } from '../services/user-sync.service';
 
 @Controller('auth')
 @ApiTags('Auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly userService: UserSyncService) {}
 
   @Post('sync')
   async syncUser(@Req() req: any) {
-    return this.authService.syncUser(req.user);
+    return this.userService.syncUser(req.user);
   }
 }

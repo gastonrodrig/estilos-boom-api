@@ -9,8 +9,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { document_type_enum, client_type_enum } from '@prisma/client';
 import { CreateClientAddressAdminDto } from './create-client-address-admin.dto';
+import { DocType } from 'src/core/constants/app.constants';
 
 export class CreateClientAdminDto {
   @ApiProperty({ example: 'user@example.com' })
@@ -43,18 +43,18 @@ export class CreateClientAdminDto {
   @IsOptional()
   phone?: string;
 
-  @ApiProperty({ enum: client_type_enum, example: client_type_enum.Persona })
-  @IsEnum(client_type_enum)
+  @ApiProperty({ enum: ['Persona', 'Empresa'], example: 'Persona' })
+  @IsEnum(['Persona', 'Empresa'])
   @IsNotEmpty()
-  client_type: client_type_enum;
+  client_type: string;
 
   @ApiPropertyOptional({
-    enum: document_type_enum,
-    example: document_type_enum.DNI,
+    enum: DocType,
+    example: DocType.DNI,
   })
-  @IsEnum(document_type_enum)
+  @IsEnum(DocType)
   @IsOptional()
-  document_type?: document_type_enum;
+  document_type?: string;
 
   @ApiPropertyOptional({ example: '12345678' })
   @IsString()

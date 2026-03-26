@@ -40,6 +40,22 @@ export class AuthService {
       };
     }
   }
+
+  async updateUserPassword(uid: string, password: string): Promise<{ success: boolean; uid?: string; message: string }> {
+    try {
+      const userRecord = await admin.auth().updateUser(uid, { password });
+      return {
+        success: true,
+        uid: userRecord.uid,
+        message: 'Contrasena actualizada correctamente',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Error al actualizar la contrasena',
+      };
+    }
+  }
   
   async generatePasswordResetLink(email: string): Promise<string> {
     const firebaseLink = await admin.auth().generatePasswordResetLink(email);
