@@ -171,7 +171,7 @@ export class MailService {
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to: dto.to,
-      subject: 'Credenciales Level Music Corp',
+      subject: 'Credenciales Estilos Boom',
       text: `Hola,\n\nTus credenciales de acceso son:\n• Email: ${dto.email}\n• Contraseña temporal: ${dto.password}\n\nEntra en https://estilos-boom-web.vercel.app//. La primera vez que ingreses, solo tendrás que cambiar tu contraseña (tu email permanecerá igual).\nEquipo Estilos Boom\nhttps://estilos-boom-web.vercel.app/\n\n¡Bienvenido!`,
       html: `<html>
   <head></head>
@@ -188,7 +188,7 @@ export class MailService {
       <!-- Header -->
       <div style="padding:32px 24px; text-align:center;">
         <img 
-          src="https://i.postimg.cc/GtGzCjqh/meta-icon.png" 
+          src="https://i.postimg.cc/rsbn9xXV/auth-icon.png" 
           alt="Estilos Boom" 
           width="64"
           style="display:block; margin:0 auto 16px;"
@@ -230,10 +230,10 @@ export class MailService {
           Puedes ingresar desde el siguiente enlace:
           <br><br>
           <a 
-            href="https://estilos-boom-web.vercel.app/" 
+            href="https://estilos-boom-web.vercel.app" 
             style="color:#252020; font-weight:700;"
           >
-            https://estilos-boom-web.vercel.app/
+            https://estilos-boom-web.vercel.app
           </a>
         </p>
 

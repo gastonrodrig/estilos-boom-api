@@ -1,7 +1,7 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import * as expressBasicAuth from 'express-basic-auth';
+import expressBasicAuth from 'express-basic-auth';
 import * as admin from 'firebase-admin';
 
 import { AppModule } from './app.module';

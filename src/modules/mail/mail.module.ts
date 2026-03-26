@@ -1,7 +1,6 @@
 import { Module } from "@nestjs/common";
 import { BullModule } from '@nestjs/bullmq';
-import { FirebaseModule } from "../firebase/firebase.module";
-import { MailService } from "./service";
+import { MailService } from "./service/mail.service";
 import { ForgotPasswordProcessor, TemporalCredentialsProcessor, SecurityNotificationsProcessor } from "./processor";
 
 @Module({
@@ -11,7 +10,6 @@ import { ForgotPasswordProcessor, TemporalCredentialsProcessor, SecurityNotifica
       { name: 'temporal-credentials' },
       { name: 'security-notifications' }
     ),
-    FirebaseModule,
   ],
   providers: [
     MailService,

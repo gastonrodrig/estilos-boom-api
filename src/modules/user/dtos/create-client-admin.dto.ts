@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { document_type_enum, client_type_enum } from '@prisma/client';
 
 export class CreateClientAdminDto {
   @ApiProperty({ example: 'user@example.com' })
@@ -33,18 +32,18 @@ export class CreateClientAdminDto {
   @IsOptional()
   phone: string;
 
-  @ApiProperty({ enum: client_type_enum, example: client_type_enum.Persona })
-  @IsEnum(client_type_enum)
+  @ApiProperty({ enum: ['Persona', 'Empresa'], example: 'Persona' })
+  @IsEnum(['Persona', 'Empresa'])
   @IsNotEmpty()
-  client_type: client_type_enum;
+  client_type: string;
 
-  @ApiProperty({ enum: document_type_enum, example: document_type_enum.DNI, required: false })
-  @IsEnum(document_type_enum)
+  @ApiProperty({ enum: ['DNI', 'RUC', 'Extranjeria', 'Pasaporte'], example: 'DNI', required: false })
+  @IsEnum(['DNI', 'RUC', 'Extranjeria', 'Pasaporte'])
   @IsOptional()
-  document_type?: document_type_enum;
+  document_type?: string;
 
   @ApiProperty({ example: '12345678', required: false })
   @IsString()
   @IsOptional()
-  document_number?: string; 
+  document_number?: string;
 }

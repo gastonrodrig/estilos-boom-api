@@ -4,25 +4,29 @@ import {
   HttpStatus,
   Injectable,
   InternalServerErrorException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { User, UserDocument } from '../schemas/user.schema';
+import { Client, ClientDocument } from '../schemas/client.schema';
+import { ClientCompany, ClientCompanyDocument } from '../schemas/client-company.schema';
 import { CreateClientLandingDto } from '../dtos/create-client-landing.dto';
-import { Estado, Roles } from 'src/core/constants/app.constants';
-import { RequestPasswordResetDto } from '../dtos/request-password-reset.dto';
 import { errorCodes } from 'src/core/common';
-import { role_enum, status_enum, User } from '@prisma/client';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { AuthService } from 'src/modules/firebase/services';
+import { AuthService } from 'src/auth/services/auth.service';
 import { UpdateExtraDataDto, CreateClientAdminDto, UpdateClientAdminDto } from '../dtos';
-import { client_type_enum } from '@prisma/client';
 import { generateRandomPassword } from 'src/core/utils';
 
 @Injectable()
 export class ClientService {
   constructor(
-    private readonly prisma: PrismaService,
-    private authService: AuthService,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(Client.name) private clientModel: Model<ClientDocument>,
+    @InjectModel(ClientCompany.name) private companyModel: Model<ClientCompanyDocument>,
+    @Inject(forwardRef(() => AuthService)) private authService: AuthService,
     @InjectQueue('forgot-password')
     private forgotPasswordQueue: Queue,
     @InjectQueue('security-notifications')
@@ -32,548 +36,256 @@ export class ClientService {
   ) { }
 
   async createClientLanding(dto: CreateClientLandingDto) {
+    const session = await this.userModel.db.startSession();
+    session.startTransaction();
     try {
-      // 1. Validar email
-      const existingUser = await this.prisma.user.findUnique({
-        where: { email: dto.email },
-      });
-
+      const existingUser = await this.userModel.findOne({ email: dto.email }).session(session);
       if (existingUser) {
         throw new HttpException(
-          {
-            code: 'EMAIL_ALREADY_EXISTS',
-            message: 'El correo ya fue registrado previamente.',
-          },
+          { code: 'EMAIL_ALREADY_EXISTS', message: 'El correo ya fue registrado previamente.' },
           HttpStatus.BAD_REQUEST,
         );
       }
 
-      // 2. Transacción (User + Client)
-      const result = await this.prisma.$transaction(async (tx) => {
-        // -------- USER --------
-        const user = await tx.user.create({
-          data: {
-            auth_id: dto.auth_id,
-            email: dto.email,
-
-            phone: null,
-            first_name: null,
-            last_name: null,
-            document_type: null,
-            document_number: null,
-
-            role: Roles.CLIENT,
-            status: Estado.ACTIVO,
-          },
-        });
-
-        // -------- CLIENT --------
-        const client = await tx.client.create({
-          data: {
-            user: {
-              connect: {
-                id_user: user.id_user,
-              },
-            },
-
-            needs_password_change: false,
-            created_by_admin: false,
-            is_extra_data_completed: false,
-
-            // opcionales en el DTO
-            profile_picture: dto.profile_picture ?? null,
-          },
-        });
-
-        return { user, client };
+      const user = new this.userModel({
+        auth_id: dto.auth_id,
+        email: dto.email,
+        role: 'Cliente',
+        status: 'Activo',
       });
+      await user.save({ session });
 
-      return result;
+      const client = new this.clientModel({
+        id_user: user._id,
+        needs_password_change: false,
+        created_by_admin: false,
+        is_extra_data_completed: false,
+        profile_picture: dto.profile_picture ?? null,
+      });
+      await client.save({ session });
+
+      await session.commitTransaction();
+      return { user, client };
     } catch (error) {
+      await session.abortTransaction();
       if (error instanceof HttpException) throw error;
-
-      throw new InternalServerErrorException(
-        `Error creating client: ${error.message}`,
-      );
+      throw new InternalServerErrorException(`Error creating client: ${error.message}`);
+    } finally {
+      session.endSession();
     }
   }
 
-  async findByEmail(email: string): Promise<User> {
-    return this.prisma.user.findUnique({
-      where: { email },
-      include: {
-        client: {
-          include: {
-            client_company: true,
-          },
-        },
-      },
-    });
-  }
-
   async validateEmailNotRegistered(email: string): Promise<void> {
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email },
-    });
-
+    const existingUser = await this.userModel.findOne({ email });
     if (existingUser) {
       throw new HttpException(
-        {
-          code: errorCodes.EMAIL_ALREADY_EXISTS,
-          message: 'El correo ya fue registrado previamente.',
-        },
+        { code: errorCodes.EMAIL_ALREADY_EXISTS, message: 'El correo ya fue registrado previamente.' },
         HttpStatus.BAD_REQUEST,
       );
     }
   }
 
+  async findByEmail(email: string) {
+    return this.userModel.findOne({ email }).populate('client');
+  }
+
   async resetPasswordChangeFlag(user_id: string) {
     try {
-      const user = await this.prisma.user.findUnique({
-        where: { id_user: user_id },
-        include: {
-          client: true,
-        },
-      });
-      if (!user) {
-        throw new BadRequestException('Usuario no encontrado');
-      }
-
-      return await this.prisma.client.update({
-        where: {
-          id_client: user.client.id_client,
-        },
-        data: {
-          needs_password_change: false,
-        },
-      });
-    } catch (error) {
-      throw new InternalServerErrorException(
-        `Error resetting password flag: ${error.message}`,
+      const client = await this.clientModel.findOneAndUpdate(
+        { id_user: new Types.ObjectId(user_id) },
+        { needs_password_change: false },
+        { new: true },
       );
+      if (!client) throw new BadRequestException('Cliente no encontrado');
+      return client;
+    } catch (error) {
+      throw new InternalServerErrorException(`Error resetting password flag: ${error.message}`);
     }
   }
 
   async sendPasswordResetEmail(email: string): Promise<void> {
     try {
-      const user = await this.prisma.user.findUnique({ where: { email } });
+      const user = await this.userModel.findOne({ email });
       if (!user) {
         throw new HttpException(
-          {
-            code: errorCodes.CLIENT_NOT_FOUND,
-            message: 'No hay un cliente asociado a ese correo.',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      if (user.role !== Roles.CLIENT) {
-        throw new HttpException(
-          {
-            code: errorCodes.USER_IS_NOT_CLIENT,
-            message: 'Este correo no pertenece a un cliente.',
-          },
+          { code: errorCodes.CLIENT_NOT_FOUND, message: 'No hay un cliente asociado a ese correo.' },
           HttpStatus.BAD_REQUEST,
         );
       }
 
       const resetLink = await this.authService.generatePasswordResetLink(email);
-
-      await this.forgotPasswordQueue.add(
-        'sendPasswordResetLink',
-        {
-          to: email,
-          link: resetLink,
-        },
-        {
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 2000 },
-          removeOnComplete: 1000,
-          removeOnFail: 100,
-        },
-      );
+      await this.forgotPasswordQueue.add('sendPasswordResetLink', { to: email, link: resetLink });
     } catch (error) {
-      if (error.message?.includes('Unable to create the email action link')) {
-        throw new HttpException(
-          {
-            code: errorCodes.INVALID_PROVIDER,
-            message:
-              'Este correo está registrado con un proveedor externo. No es posible restablecer la contraseña.',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
       if (error instanceof HttpException) throw error;
-      throw new InternalServerErrorException(
-        `Error enviando enlace de reseteo: ${error.message}`,
-      );
+      throw new InternalServerErrorException(`Error enviando enlace: ${error.message}`);
     }
   }
 
-  async updateUserExtraData(
-    auth_id: string,
-    dto: UpdateExtraDataDto,
-  ): Promise<User> {
+  async updateUserExtraData(auth_id: string, dto: UpdateExtraDataDto) {
+    const session = await this.userModel.db.startSession();
+    session.startTransaction();
     try {
-      const user = await this.prisma.user.findUnique({
-        where: { auth_id },
-        include: { client: true },
-      });
-
+      const user = await this.userModel.findOne({ auth_id }).session(session);
       if (!user) throw new BadRequestException('Usuario no encontrado');
 
-      // validar documento único
-      if (dto.document_number) {
-        const existingDoc = await this.prisma.user.findUnique({
-          where: { document_number: dto.document_number },
-        });
+      const { client_type, company_name, contact_name, ...userData } = dto;
 
-        if (existingDoc && existingDoc.id_user !== user.id_user) {
-          throw new HttpException(
-            {
-              code: errorCodes.DOCUMENT_NUMBER_ALREADY_EXISTS,
-              message: 'El número de documento ya fue registrado previamente.',
-            },
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-      }
+      await this.userModel.updateOne({ _id: user._id }, userData).session(session);
 
-      const {
-        client_type,
-        company_name,
-        contact_name,
-        ...userData
-      } = dto;
-
-      await this.prisma.$transaction(async (tx) => {
-        await tx.user.update({
-          where: { id_user: user.id_user },
-          data: userData,
-        });
-
-        const client = await tx.client.update({
-          where: { id_user: user.id_user },
-          data: {
-            is_extra_data_completed: true,
-            ...(client_type && { client_type }),
-          },
-        });
-
-        if (client_type === 'Empresa') {
-          if (!company_name || !contact_name) {
-            throw new BadRequestException(
-              'Empresa requiere company_name y contact_name',
-            );
-          }
-
-          await tx.clientCompany.create({
-            data: {
-              id_client: client.id_client,
-              company_name,
-              contact_name,
-            },
-          });
-        }
-      });
-
-      return this.prisma.user.findUnique({
-        where: { id_user: user.id_user },
-        include: {
-          client: {
-            include: {
-              client_company: true,
-            },
-          },
-        },
-      });
-    } catch (error) {
-      if (error instanceof HttpException) throw error;
-      throw new InternalServerErrorException(error.message);
-    }
-  }
-
-  async findAllCustomersPaginated(
-    limit = 5,
-    offset = 0,
-    search = '',
-    sortField: string = 'created_at',
-    sortOrder: 'asc' | 'desc' = 'asc',
-    clientType?: client_type_enum,
-  ): Promise<{ total: number; items: User[] }> {
-    try {
-      const where: any = {
-        role: 'Cliente',
-
-        // filtro por relación (Client)
-        ...(clientType && {
-          client: {
-            client_type: clientType,
-          },
-        }),
-
-        // búsqueda
-        ...(search && {
-          OR: [
-            { email: { contains: search, mode: 'insensitive' } },
-            { first_name: { contains: search, mode: 'insensitive' } },
-            { last_name: { contains: search, mode: 'insensitive' } },
-            { document_number: { contains: search, mode: 'insensitive' } },
-          ],
-        }),
-      };
-
-      const [total, items] = await this.prisma.$transaction([
-        this.prisma.user.count({ where }),
-
-        this.prisma.user.findMany({
-          where,
-          skip: offset,
-          take: limit,
-          orderBy: {
-            [sortField]: sortOrder,
-          },
-          include: {
-            client: true,
-          },
-        }),
-      ]);
-
-      return { total, items };
-    } catch (error) {
-      throw new Error(`Error al listar clientes: ${error.message}`);
-    }
-  }
-
-  async createClientAdmin(dto: CreateClientAdminDto): Promise<User> {
-    try {
-      // 1. Validar datos según tipo de cliente
-      const isPerson = dto.client_type === client_type_enum.Persona;
-      const isCompany = dto.client_type === client_type_enum.Empresa;
-
-      if (isPerson) {
-        if (!dto.first_name || !dto.last_name) {
-          throw new HttpException(
-            { message: 'Nombre y apellido son requeridos para persona.' },
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-      }
-
-      if (isCompany) {
-        if (
-          !dto.company_name ||
-          !dto.contact_name
-        ) {
-          throw new HttpException(
-            { message: 'Datos de empresa incompletos.' },
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-      }
-
-      // 2. Validar únicos
-      const [existingEmail, existingDoc] = await Promise.all([
-        this.prisma.user.findUnique({ where: { email: dto.email } }),
-        dto.document_number
-          ? this.prisma.user.findUnique({
-            where: { document_number: dto.document_number },
-          })
-          : null,
-      ]);
-
-      if (existingEmail) {
-        throw new HttpException(
-          {
-            code: errorCodes.EMAIL_ALREADY_EXISTS,
-            message: 'El correo ya fue registrado previamente.',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      if (existingDoc) {
-        throw new HttpException(
-          {
-            code: errorCodes.DOCUMENT_NUMBER_ALREADY_EXISTS,
-            message: 'El número de documento ya fue registrado previamente.',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      // 3. Password
-      const password = generateRandomPassword();
-
-      // 4. Firebase
-      const firebaseUser = await this.authService.createUserWithEmail({
-        email: dto.email,
-        password,
-      });
-
-      if (!firebaseUser.success || !firebaseUser.uid) {
-        throw new InternalServerErrorException(firebaseUser.message);
-      }
-
-      // 5. Transacción
-      const user = await this.prisma.$transaction(async (tx) => {
-
-        // USER
-        const newUser = await tx.user.create({
-          data: {
-            auth_id: firebaseUser.uid,
-            email: dto.email,
-            first_name: dto.first_name,
-            last_name: dto.last_name,
-            phone: dto.phone,
-            document_type: dto.document_type,
-            document_number: dto.document_number,
-            role: role_enum.Cliente,
-            status: status_enum.Activo,
-          },
-        });
-
-        // CLIENT
-        const client = await tx.client.create({
-          data: {
-            id_user: newUser.id_user,
-            client_type: dto.client_type,
-            created_by_admin: true,
-            needs_password_change: true,
-            is_extra_data_completed: true,
-          },
-        });
-
-        // PARA CLIENTE EMPRESA
-        if (isCompany) {
-          await tx.clientCompany.create({
-            data: {
-              id_client: client.id_client,
-              company_name: dto.company_name,
-              contact_name: dto.contact_name,
-            },
-          });
-        }
-
-        return newUser;
-      });
-
-      // 5. Enviar credenciales vía cola
-      await this.temporalCredentialsQueue.add(
-        'sendTemporalCredentials',
-        {
-          to: dto.email,
-          email: dto.email,
-          password,
-        },
-        {
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 2000 },
-          removeOnComplete: 1000,
-          removeOnFail: 100,
-        },
+      const client = await this.clientModel.findOneAndUpdate(
+        { id_user: user._id },
+        { is_extra_data_completed: true, client_type: client_type },
+        { new: true, session },
       );
 
+      if (client_type === 'Empresa' && company_name && contact_name) {
+        await this.companyModel.findOneAndUpdate(
+          { id_client: client._id },
+          { company_name, contact_name },
+          { upsert: true, session },
+        );
+      }
+
+      await session.commitTransaction();
+      return this.userModel.findById(user._id).populate('client');
+    } catch (error) {
+      await session.abortTransaction();
+      throw new InternalServerErrorException(error.message);
+    } finally {
+      session.endSession();
+    }
+  }
+
+  async createClientAdmin(dto: CreateClientAdminDto) {
+    const session = await this.userModel.db.startSession();
+    session.startTransaction();
+    try {
+      const password = generateRandomPassword();
+      const firebaseUser = await this.authService.createUserWithEmail({ email: dto.email, password });
+      if (!firebaseUser.success) throw new InternalServerErrorException(firebaseUser.message);
+
+      const user = new this.userModel({
+        auth_id: firebaseUser.uid,
+        email: dto.email,
+        first_name: dto.first_name,
+        last_name: dto.last_name,
+        phone: dto.phone,
+        document_type: dto.document_type,
+        document_number: dto.document_number,
+        role: 'Cliente',
+        status: 'Activo',
+      });
+      await user.save({ session });
+
+      const client = new this.clientModel({
+        id_user: user._id,
+        client_type: dto.client_type,
+        created_by_admin: true,
+        needs_password_change: true,
+        is_extra_data_completed: true,
+      });
+      await client.save({ session });
+
+      if (dto.client_type === 'Empresa' && dto.company_name) {
+        await new this.companyModel({
+          id_client: client._id,
+          company_name: dto.company_name,
+          contact_name: dto.contact_name,
+        }).save({ session });
+      }
+
+      await this.temporalCredentialsQueue.add('sendTemporalCredentials', { to: dto.email, email: dto.email, password });
+      await session.commitTransaction();
       return user;
     } catch (error) {
-      if (error instanceof HttpException) throw error;
-      throw new InternalServerErrorException(
-        `Error creating client: ${error.message}`,
-      );
+      await session.abortTransaction();
+      throw new InternalServerErrorException(`Error creating client: ${error.message}`);
+    } finally {
+      session.endSession();
     }
   }
 
-  async updateClientAdmin(id: string, dto: UpdateClientAdminDto): Promise<User> {
+  async updateClientAdmin(idUser: string, dto: UpdateClientAdminDto) {
+    const session = await this.userModel.db.startSession();
+    session.startTransaction();
     try {
-      const currentUser = await this.prisma.user.findUnique({
-        where: { id_user: id },
-        include: { client: true },
-      });
+      const user = await this.userModel.findById(idUser).session(session);
+      if (!user) throw new BadRequestException('Cliente no encontrado');
 
-      if (!currentUser) {
-        throw new HttpException('Cliente no encontrado', HttpStatus.NOT_FOUND);
+      const emailChanged = dto.email && dto.email !== user.email;
+      let newPassword: string | null = null;
+
+      if (emailChanged) {
+        newPassword = generateRandomPassword();
+        const firebaseUpdate = await this.authService.updateUserEmail(user.auth_id, { email: dto.email });
+        if (!firebaseUpdate.success) throw new InternalServerErrorException(firebaseUpdate.message);
+
+        await this.securityQueue.add('sendEmailChangeNotification', { to: user.email, oldEmail: user.email, newEmail: dto.email });
       }
 
-      if (dto.email && dto.email !== currentUser.email) {
-        const emailExists = await this.prisma.user.findUnique({
-          where: { email: dto.email },
-        });
-        if (emailExists) {
-          throw new BadRequestException('El nuevo correo ya está registrado.');
-        }
-
-        const firebaseUpdate = await this.authService.updateUserEmail(
-          currentUser.auth_id,
-          { email: dto.email },
-        );
-        if (!firebaseUpdate.success) {
-          throw new InternalServerErrorException(
-            `Error actualizando identidad: ${firebaseUpdate.message}`,
-          );
-        }
-
-        // --- NOTIFICACIÓN DE SEGURIDAD (AL CORREO ORIGINAL) ---
-        await this.securityQueue.add(
-          'sendEmailChangeNotification',
-          {
-            to: currentUser.email, // Correo original
-            oldEmail: currentUser.email,
-            newEmail: dto.email,
-          },
-          {
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 2000 },
-            removeOnComplete: 1000,
-            removeOnFail: 100,
-          },
-        );
-      }
-
-      const isCompany = dto.client_type === client_type_enum.Empresa;
-
-      return await this.prisma.$transaction(async (tx) => {
-        const updatedUser = await tx.user.update({
-          where: { id_user: id },
-          data: {
-            email: dto.email,
-            first_name: dto.first_name,
-            last_name: dto.last_name,
-            phone: dto.phone,
-            document_type: dto.document_type,
-            document_number: dto.document_number,
-            status: dto.status as status_enum,
-          },
-        });
-
-        if (dto.client_type) {
-          const client = await tx.client.update({
-            where: { id_user: id },
-            data: { client_type: dto.client_type as client_type_enum },
-          });
-
-          if (isCompany) {
-            await tx.clientCompany.upsert({
-              where: { id_client: client.id_client },
-              create: {
-                id_client: client.id_client,
-                company_name: dto.company_name ?? '',
-                contact_name: dto.contact_name ?? '',
-              },
-              update: {
-                company_name: dto.company_name,
-                contact_name: dto.contact_name,
-              },
-            });
-          }
-        }
-
-        return updatedUser;
-      });
-    } catch (error) {
-      if (error instanceof HttpException) throw error;
-      throw new InternalServerErrorException(
-        `Error al actualizar cliente: ${error.message}`,
+      const updatedUser = await this.userModel.findByIdAndUpdate(
+        idUser,
+        {
+          email: dto.email,
+          first_name: dto.first_name,
+          last_name: dto.last_name,
+          phone: dto.phone,
+          document_type: dto.document_type,
+          document_number: dto.document_number,
+          status: dto.status,
+        },
+        { new: true, session },
       );
+
+      const client = await this.clientModel.findOneAndUpdate(
+        { id_user: user._id },
+        { client_type: dto.client_type, needs_password_change: emailChanged ? true : false },
+        { new: true, session },
+      );
+
+      if (dto.client_type === 'Empresa') {
+        await this.companyModel.findOneAndUpdate(
+          { id_client: client._id },
+          { company_name: dto.company_name, contact_name: dto.contact_name },
+          { upsert: true, session },
+        );
+      } else {
+        await this.companyModel.deleteOne({ id_client: client._id }).session(session);
+      }
+
+      if (emailChanged && newPassword) {
+        await this.temporalCredentialsQueue.add('sendTemporalCredentials', { to: dto.email, email: dto.email, password: newPassword });
+      }
+
+      await session.commitTransaction();
+      return updatedUser;
+    } catch (error) {
+      await session.abortTransaction();
+      throw new InternalServerErrorException(`Error updating client: ${error.message}`);
+    } finally {
+      session.endSession();
     }
+  }
+
+  async findAllCustomersPaginated(limit = 5, offset = 0, search = '', sortField = 'created_at', sortOrder: 'asc' | 'desc' = 'asc', clientType?: string) {
+    const query: any = { role: 'Cliente' };
+    if (search) {
+      query.$or = [
+        { email: new RegExp(search, 'i') },
+        { first_name: new RegExp(search, 'i') },
+        { last_name: new RegExp(search, 'i') },
+      ];
+    }
+
+    const [total, items] = await Promise.all([
+      this.userModel.countDocuments(query),
+      this.userModel.find(query)
+        .skip(offset)
+        .limit(limit)
+        .sort({ [sortField]: sortOrder === 'asc' ? 1 : -1 })
+        .populate('client'),
+    ]);
+
+    return { total, items };
   }
 }
