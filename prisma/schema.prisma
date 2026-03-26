@@ -1,12 +1,9 @@
-// =====================
-// CONFIGURACIÓN
-// =====================
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -43,7 +40,7 @@ enum role_enum {
 // USER
 // =====================
 model User {
-  id_user          String             @id @default(uuid())
+  id_user          String             @id @default(auto()) @map("_id") @db.ObjectId
   auth_id          String             @unique
   email            String             @unique
 
@@ -66,8 +63,8 @@ model User {
 // WORKER
 // =====================
 model Worker {
-  id_worker          String      @id @default(uuid())
-  id_user            String      @unique
+  id_worker          String      @id @default(auto()) @map("_id") @db.ObjectId
+  id_user            String      @unique @db.ObjectId
   role               worker_role
   employment_status  status_enum @default(Activo)
   hired_at           DateTime    @default(now())
@@ -79,8 +76,8 @@ model Worker {
 // CLIENT
 // =====================
 model Client {
-  id_client               String          @id @default(uuid())
-  id_user                 String          @unique
+  id_client               String          @id @default(auto()) @map("_id") @db.ObjectId
+  id_user                 String          @unique @db.ObjectId
   address                 String?
   profile_picture         String?
   client_type             client_type_enum?
@@ -97,7 +94,7 @@ model Client {
 // CLIENT COMPANY 
 // =====================
 model ClientCompany {
-  id_client           String  @id
+  id_client           String  @id @map("_id") @db.ObjectId
   company_name        String
   contact_name        String
   client              Client  @relation(fields: [id_client], references: [id_client])
@@ -107,7 +104,7 @@ model ClientCompany {
 // PRODUCT
 // =====================
 model Product {
-  id          String   @id @default(uuid())
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
   name        String
   description String?
   sku         String   @unique
