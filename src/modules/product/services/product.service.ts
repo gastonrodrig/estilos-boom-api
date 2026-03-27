@@ -11,31 +11,78 @@ import {
   ProductVariantDocument,
   ProductVariant,
 } from '../schemas';
+import { CategoryDocument, Category } from '../schemas';
 import { StorageService } from 'src/modules/firebase/services';
 
 @Injectable()
 export class ProductService {
   constructor(
-    @InjectModel(Product.name) private productModel: Model<ProductDocument>,
-    @InjectModel(ProductVariant.name)
-    private variantModel: Model<ProductVariantDocument>,
+    @InjectModel(Product.name) 
+    private productModel: Model<ProductDocument>,
+
+    @InjectModel(Category.name) 
+    private categoryModel: Model<CategoryDocument>, // 👈 Ahora tiene su decorador
+
+    @InjectModel(ProductVariant.name) 
+    private variantModel: Model<ProductVariantDocument>, // 👈 Y este también
+
     private storageService: StorageService,
   ) {}
 
   async findAll(query: any = {}) {
-    const { category, section, maxPrice, colors } = query;
-    const filter: any = { is_active: true };
+  const { category, section, maxPrice, colors, limit, offset } = query;
+  const filter: any = { is_active: true };
 
-    if (category) filter.id_category = new Types.ObjectId(category);
-    if (section) filter.section = section;
-    if (maxPrice) filter.base_price = { $lte: maxPrice };
-    if (colors) {
-      const colorArray = Array.isArray(colors) ? colors : [colors];
-      filter['variants.color'] = { $in: colorArray };
+  if (category) {
+    // 1. Buscamos la categoría por nombre (Dresses)
+    const categoryDoc = await this.categoryModel.findOne({ 
+      name: new RegExp(`^${category}$`, 'i') 
+    });
+
+    if (categoryDoc) {
+      // 2. BUSQUEDA FLEXIBLE:
+      // Filtramos productos que tengan el ID como Objeto O como String
+      filter.$or = [
+        { id_category: categoryDoc._id }, 
+        { id_category: categoryDoc._id.toString() }
+      ];
+    }  else {
+      return { items: [], total: 0 };
     }
-
-    return this.productModel.find(filter).populate('id_category');
   }
+
+ if (section === 'new-in') {
+    filter.is_new_in = true;
+  } else if (section === 'best-seller') {
+    filter.is_best_seller = true;
+  }
+
+  // 3. Filtro de Precio (Aseguramos que sea número)
+  if (maxPrice) {
+    filter.base_price = { $lte: Number(maxPrice) };
+  }
+
+  if (colors) {
+    const colorArray = Array.isArray(colors) ? colors : [colors];
+    filter['variants.color'] = { $in: colorArray };
+  }
+
+  const skip = Number(offset) || 0;
+  const take = Number(limit) || 10;
+
+  const [items, total] = await Promise.all([
+    this.productModel
+      .find(filter)
+      .populate('id_category') // Trae la data de la categoría
+      .skip(skip)
+      .limit(take)
+      .sort({ created_at: -1 })
+      .exec(), // 👈 .exec() es buena práctica en Mongoose
+    this.productModel.countDocuments(filter).exec(),
+  ]);
+
+  return { items, total };
+}
 
   async findOne(id: string) {
     const product = await this.productModel

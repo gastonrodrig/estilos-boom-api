@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ProductService } from '../services';
 import { CreateProductDto } from '../dto';
-import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { Public } from 'src/auth/decorators';
 import { FilesInterceptor } from '@nestjs/platform-express';
 
@@ -124,19 +124,23 @@ export class ProductController {
   }
 
   @Get()
+  @ApiOperation({ summary: 'Obtener todos los productos con filtros y paginación' })
   @Public()
-  async findAll(
-    @Query('category') category?: string,
-    @Query('section') section?: string,
-    @Query('maxPrice') maxPrice?: string, // Llega como string desde la URL
-    @Query('colors') colors?: string | string[], // Puede ser un color o varios
-  ) {
-    return this.productService.findAll({
-      category,
-      section,
-      maxPrice: maxPrice ? Number(maxPrice) : undefined,
-      colors
-    });
+  // Definimos los parámetros para Swagger como opcionales
+  @ApiQuery({ name: 'category', required: false, type: String })
+  @ApiQuery({ name: 'section', required: false, type: String })
+  @ApiQuery({ name: 'maxPrice', required: false, type: Number })
+  @ApiQuery({ name: 'colors', required: false, isArray: true, type: String })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Cantidad de items' })
+  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Desde qué item empezar' })
+  async findAll(@Query() query: any) {
+    // 🔍 Log de depuración para ver qué llega desde el Front o Swagger
+    console.log('--- Nueva Petición de Productos ---');
+    console.log('Query Params:', query);
+
+    // Pasamos todo el objeto query directamente. 
+    // El Service se encargará de desestructurar y convertir tipos.
+    return this.productService.findAll(query);
   }
 
   @Get(':id')
