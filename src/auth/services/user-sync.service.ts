@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../../modules/user/schemas/user.schema';
 import { Client, ClientDocument } from '../../modules/user/schemas/client.schema';
+import { ClientCompany, ClientCompanyDocument } from '../../modules/user/schemas/client-company.schema';
 import { Estado, Roles } from 'src/core/constants/app.constants';
 
 @Injectable()
@@ -11,13 +12,19 @@ export class UserSyncService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Client.name) private clientModel: Model<ClientDocument>,
+    @InjectModel(ClientCompany.name)
+    private clientCompanyModel: Model<ClientCompanyDocument>,
   ) { }
 
   async syncUser(decoded: any) {
-    const session = await this.userModel.db.startSession();
-    session.startTransaction();
+    // const session = await this.userModel.db.startSession();
+    // session.startTransaction();
 
     try {
+      if (!decoded?.uid) {
+        throw new UnauthorizedException('Token no enviado o invalido');
+      }
+
       const { uid } = decoded;
       const userRecord = await admin.auth().getUser(uid);
 
@@ -38,7 +45,7 @@ export class UserSyncService {
       // Buscar usuario por email
       let user = await this.userModel
         .findOne({ email })
-        .session(session);
+        // .session(session);
 
       // CASO 1: Existe usuario → asegurar auth_id
       if (user) {
@@ -46,7 +53,7 @@ export class UserSyncService {
           user = await this.userModel.findByIdAndUpdate(
             user._id,
             { $set: { auth_id: uid } },
-            { new: true, session },
+            // { new: true, session },
           );
         }
       } else {
@@ -61,7 +68,7 @@ export class UserSyncService {
                 status: Estado.ACTIVO,
               },
             ],
-            { session },
+            // { session },
           );
 
           const newUser = createdUsers[0];
@@ -76,19 +83,20 @@ export class UserSyncService {
                 is_extra_data_completed: false,
               },
             ],
-            { session },
+            // { session },
           );
 
           user = newUser;
         } catch (error: any) {
           if (error?.code === 11000) {
-            user = await this.userModel.findOne({ email }).session(session);
+            user = await this.userModel.findOne({ email })
+            // .session(session);
 
             if (user && !user.auth_id) {
               user = await this.userModel.findByIdAndUpdate(
                 user._id,
                 { $set: { auth_id: uid } },
-                { new: true, session },
+                // { new: true, session },
               );
             }
           } else {
@@ -101,17 +109,15 @@ export class UserSyncService {
         throw new InternalServerErrorException('No se pudo sincronizar el usuario');
       }
 
-      await session.commitTransaction();
+      // await session.commitTransaction();
 
-      // Leer usuario final con client y company
-      const finalUser = await this.userModel
-        .findById(user._id)
-        .populate({
-          path: 'client',
-          populate: {
-            path: 'client_company',
-          },
-        });
+      // Leer usuario final con client y company usando los ids reales del esquema
+      const finalUser = await this.userModel.findById(user._id).lean();
+
+      const client = await this.clientModel.findOne({ id_user: user._id }).lean();
+      const clientCompany = client
+        ? await this.clientCompanyModel.findOne({ id_client: client._id }).lean()
+        : null;
 
       // Asignar rol al token
       await admin.auth().setCustomUserClaims(uid, {
@@ -119,10 +125,18 @@ export class UserSyncService {
       });
 
       return {
-        user: finalUser,
+        user: {
+          ...finalUser,
+          client: client
+            ? {
+              ...client,
+              client_company: clientCompany,
+            }
+            : null,
+        },
       };
     } catch (error) {
-      await session.abortTransaction();
+      // await session.abortTransaction();
 
       if (error instanceof HttpException) {
         throw error;
@@ -132,7 +146,7 @@ export class UserSyncService {
         `Error syncing user: ${error.message}`,
       );
     } finally {
-      session.endSession();
+      // session.endSession();
     }
   }
 }

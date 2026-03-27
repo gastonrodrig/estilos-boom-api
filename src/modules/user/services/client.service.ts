@@ -214,7 +214,7 @@ export class ClientService {
       );
 
       // 2. Buscar cliente asociado al usuario
-      const client = await this.clientModel.findOne({ user: user._id }).session(session);
+      const client = await this.clientModel.findOne({ id_user: user._id }).session(session);
 
       if (!client) {
         throw new BadRequestException('Cliente no encontrado');
@@ -233,7 +233,7 @@ export class ClientService {
       );
 
       // 4. Si es empresa, validar y registrar/actualizar información empresarial
-      if (client_type === 'Empresa') {
+      if (client_type === ClientType.EMPRESA) {
         if (!company_name || !contact_name) {
           throw new BadRequestException(
             'Empresa requiere company_name y contact_name',
@@ -241,7 +241,7 @@ export class ClientService {
         }
 
         const existingCompany = await this.companyModel
-          .findOne({ client: client._id })
+          .findOne({ id_client: client._id })
           .session(session);
 
         if (existingCompany) {
@@ -295,7 +295,7 @@ export class ClientService {
   ): Promise<{ total: number; items: User[] }> {
     try {
       const userFilter: any = {
-        role: 'Cliente',
+        role: Roles.CLIENT,
       };
 
       // Búsqueda por texto
@@ -312,7 +312,7 @@ export class ClientService {
       if (clientType) {
         const clients = await this.clientModel
           .find({ client_type: clientType })
-          .select('user')
+          .select('id_user')
           .lean();
 
         const userIds = clients.map((client) => client.id_user);
@@ -480,19 +480,19 @@ export class ClientService {
       }
 
       // DIRECCIONES
-      if (normalizedAddresses.length > 0) {
-        const addressDocs = normalizedAddresses.map((address) => ({
-          id_client: client._id, 
-          address_line: address.address_line,
-          reference: address.reference ?? null,
-          department: address.department ?? null,
-          province: address.province ?? null,
-          district: address.district ?? null,
-          is_default: !!address.is_default,
-        }));
+      // if (normalizedAddresses.length > 0) {
+      //   const addressDocs = normalizedAddresses.map((address) => ({
+      //     id_client: client._id, 
+      //     address_line: address.address_line,
+      //     reference: address.reference ?? null,
+      //     department: address.department ?? null,
+      //     province: address.province ?? null,
+      //     district: address.district ?? null,
+      //     is_default: !!address.is_default,
+      //   }));
 
-        await this.addressModel.insertMany(addressDocs, { session });
-      }
+      //   await this.addressModel.insertMany(addressDocs, { session });
+      // }
 
       await session.commitTransaction();
 
