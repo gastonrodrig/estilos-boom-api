@@ -16,18 +16,29 @@ export class LoggingInterceptor implements NestInterceptor {
     const request = context.switchToHttp().getRequest();
     const { method, originalUrl } = request;
 
-    this.logger.log(`Request: ${method} ${originalUrl}`);
-
     const start = Date.now();
 
     return next.handle().pipe(
-      tap(() => {
-        const response = context.switchToHttp().getResponse();
-        const { statusCode } = response;
-        const duration = Date.now() - start;
-        this.logger.log(
-          `Response: ${method} ${originalUrl} ${statusCode} - ${duration}ms`,
-        );
+      tap({
+        next: (response) => {
+          const httpResponse = context.switchToHttp().getResponse();
+          const { statusCode } = httpResponse;
+          const duration = Date.now() - start;
+          const responseSummary =
+            response && typeof response === 'object'
+              ? Object.keys(response).slice(0, 3).join(',')
+              : '';
+
+          this.logger.log(
+            `[${statusCode}] ${method} ${originalUrl} - ${duration}ms${responseSummary ? ` | ${responseSummary}` : ''}`,
+          );
+        },
+        error: (error) => {
+          const duration = Date.now() - start;
+          this.logger.error(
+            `[${error?.status || 500}] ${method} ${originalUrl} - ${duration}ms | ${error?.message || 'Unhandled error'}`,
+          );
+        },
       }),
     );
   }

@@ -546,7 +546,9 @@ export class ClientService {
       // Validar email único
       if (emailChanged) {
         const existingEmail = await this.userModel
-          .findOne({ email: dto.email, _id: { $ne: user._id } })
+          .findOne({ 
+            email: dto.email, 
+            _id: { $ne: toObjectId(idUser) } })
           .lean();
 
         if (existingEmail) {
