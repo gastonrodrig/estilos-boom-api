@@ -10,6 +10,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { MailModule } from './modules/mail/mail.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { FirebaseAuthGuard } from './auth/guards/firebase-auth.guard';
+import { CartModule } from './modules/cart/cart.module';
 
 @Module({
   imports: [
@@ -40,7 +41,8 @@ import { FirebaseAuthGuard } from './auth/guards/firebase-auth.guard';
     MailModule,
     ProductModule,
     UserModule,
-    FirebaseModule
+    FirebaseModule,
+    CartModule,
   ],
   providers: [
     {

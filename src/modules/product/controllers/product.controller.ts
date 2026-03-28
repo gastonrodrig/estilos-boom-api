@@ -144,6 +144,7 @@ export class ProductController {
   }
 
   @Get(':id')
+  @Public()
   findOne(@Param('id') id: string) {
     return this.productService.findOne(id);
   }
