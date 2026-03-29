@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsArray, ValidateNested } from 'class-validator';
-import { AddCartItemDto } from './add-cart-iteam.dto';
+import { AddCartItemDto } from './add-cart-item.dto';
 
 export class MergeCartDto {
 	@IsArray()
