@@ -11,6 +11,7 @@ import { Worker, WorkerSchema } from './schemas/worker.schema';
 import { ClientCompany, ClientCompanySchema } from './schemas/client-company.schema';
 import { ClientAddress, ClientAddressSchema } from './schemas/client-address.schema';
 import { FirebaseModule } from '../firebase/firebase.module';
+import { CartModule } from '../cart/cart.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { FirebaseModule } from '../firebase/firebase.module';
       { name: 'security-notifications' }
     ),
     FirebaseModule,
+    CartModule,
   ],
   controllers: [ClientController, WorkerController],
   providers: [ClientService, WorkerService],
