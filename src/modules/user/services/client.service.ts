@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { 
+import {
   User, UserDocument,
   Client, ClientDocument,
   ClientCompany, ClientCompanyDocument,
@@ -18,11 +18,11 @@ import {
 import { errorCodes } from 'src/core/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { 
+import {
   CreateClientLandingDto,
-  UpdateExtraDataDto, 
-  CreateClientAdminDto, 
-  UpdateClientAdminDto 
+  UpdateExtraDataDto,
+  CreateClientAdminDto,
+  UpdateClientAdminDto
 } from '../dtos';
 import { generateRandomPassword, toObjectId } from 'src/core/utils';
 import { Estado, Roles } from 'src/core/constants/app.constants';
@@ -32,15 +32,15 @@ import { AuthService } from 'src/modules/firebase/services';
 @Injectable()
 export class ClientService {
   constructor(
-    @InjectModel(User.name) 
+    @InjectModel(User.name)
     private userModel: Model<UserDocument>,
-    @InjectModel(Client.name) 
+    @InjectModel(Client.name)
     private clientModel: Model<ClientDocument>,
-    @InjectModel(ClientCompany.name) 
+    @InjectModel(ClientCompany.name)
     private companyModel: Model<ClientCompanyDocument>,
-    @InjectModel(ClientAddress.name) 
+    @InjectModel(ClientAddress.name)
     private addressModel: Model<ClientAddressDocument>,
-    @Inject(forwardRef(() => AuthService)) 
+    @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
     @InjectQueue('forgot-password')
     private forgotPasswordQueue: Queue,
@@ -57,9 +57,9 @@ export class ClientService {
       const existingUser = await this.userModel.findOne({ email: dto.email }).session(session);
       if (existingUser) {
         throw new HttpException(
-          { 
-            code: errorCodes.EMAIL_ALREADY_EXISTS, 
-            message: 'El correo ya fue registrado previamente.' 
+          {
+            code: errorCodes.EMAIL_ALREADY_EXISTS,
+            message: 'El correo ya fue registrado previamente.'
           },
           HttpStatus.BAD_REQUEST,
         );
@@ -102,9 +102,9 @@ export class ClientService {
     const existingUser = await this.userModel.findOne({ email });
     if (existingUser) {
       throw new HttpException(
-        { 
-          code: errorCodes.EMAIL_ALREADY_EXISTS, 
-          message: 'El correo ya fue registrado previamente.' 
+        {
+          code: errorCodes.EMAIL_ALREADY_EXISTS,
+          message: 'El correo ya fue registrado previamente.'
         },
         HttpStatus.BAD_REQUEST,
       );
@@ -115,16 +115,20 @@ export class ClientService {
     return this.userModel.findOne({ email }).populate('client');
   }
 
-  async resetPasswordChangeFlag(user_id: string) {
+  async resetPasswordChangeFlag(auth_id: string) {
     try {
+      const user = await this.userModel.findOne({ auth_id });
+      if (!user) throw new BadRequestException('Usuario no encontrado');
+
       const client = await this.clientModel.findOneAndUpdate(
-        { id_user: toObjectId(user_id) },
+        { id_user: user._id },
         { needs_password_change: false },
         { new: true },
       );
-      if (!client) throw new BadRequestException('Cliente no encontrado');
+      if (!client) throw new BadRequestException('Registro de cliente no encontrado');
       return client;
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new InternalServerErrorException(`Error resetting password flag: ${error.message}`);
     }
   }
@@ -134,9 +138,9 @@ export class ClientService {
       const user = await this.userModel.findOne({ email });
       if (!user) {
         throw new HttpException(
-          { 
-            code: errorCodes.CLIENT_NOT_FOUND, 
-            message: 'No hay un cliente asociado a ese correo.' 
+          {
+            code: errorCodes.CLIENT_NOT_FOUND,
+            message: 'No hay un cliente asociado a ese correo.'
           },
           HttpStatus.BAD_REQUEST,
         );
@@ -153,7 +157,7 @@ export class ClientService {
       }
 
       const resetLink = await this.authService.generatePasswordResetLink(email);
-      
+
       await this.forgotPasswordQueue.add(
         'sendPasswordResetLink',
         {
@@ -203,24 +207,22 @@ export class ClientService {
         client_type,
         company_name,
         contact_name,
+        addresses,
         ...userData
       } = dto;
 
-      // 1. Actualizar datos del usuario
       await this.userModel.updateOne(
         { _id: user._id },
         { $set: userData },
         { session },
       );
 
-      // 2. Buscar cliente asociado al usuario
       const client = await this.clientModel.findOne({ id_user: user._id }).session(session);
 
       if (!client) {
         throw new BadRequestException('Cliente no encontrado');
       }
 
-      // 3. Actualizar datos del cliente
       await this.clientModel.updateOne(
         { _id: client._id },
         {
@@ -232,7 +234,22 @@ export class ClientService {
         { session },
       );
 
-      // 4. Si es empresa, validar y registrar/actualizar información empresarial
+      if (addresses && addresses.length > 0) {
+        await this.addressModel.deleteMany({ id_client: client._id }).session(session);
+
+        const addressDocs = addresses.map((address) => ({
+          id_client: client._id,
+          address_line: address.address_line,
+          reference: address.reference ?? null,
+          department: address.department ?? null,
+          province: address.province ?? null,
+          district: address.district ?? null,
+          is_default: !!address.is_default,
+        }));
+
+        await this.addressModel.insertMany(addressDocs, { session });
+      }
+
       if (client_type === ClientType.EMPRESA) {
         if (!company_name || !contact_name) {
           throw new BadRequestException(
@@ -298,7 +315,6 @@ export class ClientService {
         role: Roles.CLIENT,
       };
 
-      // Búsqueda por texto
       if (search) {
         userFilter.$or = [
           { email: { $regex: search, $options: 'i' } },
@@ -308,7 +324,6 @@ export class ClientService {
         ];
       }
 
-      // Filtro por tipo de cliente
       if (clientType) {
         const clients = await this.clientModel
           .find({ client_type: clientType })
@@ -324,7 +339,7 @@ export class ClientService {
         [sortField]: sortOrder === 'asc' ? 1 : -1,
       };
 
-      const [total, items] = await Promise.all([
+      const [total, users] = await Promise.all([
         this.userModel.countDocuments(userFilter),
         this.userModel
           .find(userFilter)
@@ -334,6 +349,26 @@ export class ClientService {
           .lean(),
       ]);
 
+      // Poblamos datos de Client y sus Addresses para cada usuario
+      const items = await Promise.all(
+        users.map(async (user) => {
+          const clientData = await this.clientModel.findOne({ id_user: user._id }).lean();
+          let addresses = [];
+
+          if (clientData) {
+            addresses = await this.addressModel.find({ id_client: clientData._id }).lean();
+          }
+
+          return {
+            ...user,
+            ...clientData,
+            addresses: addresses || [],
+            _id: user._id.toString(),
+            id_user: user._id.toString(),
+          };
+        }),
+      );
+
       return { total, items };
     } catch (error) {
       throw new Error(`Error al listar clientes: ${error.message}`);
@@ -341,100 +376,121 @@ export class ClientService {
   }
 
   async createClientAdmin(dto: CreateClientAdminDto): Promise<User> {
-    const session = await this.userModel.db.startSession();
-    session.startTransaction();
+    const isPerson = dto.client_type === ClientType.PERSONA;
+    const isCompany = dto.client_type === ClientType.EMPRESA;
 
+    if (isPerson) {
+      if (!dto.first_name || !dto.last_name) {
+        throw new HttpException(
+          { message: 'Nombre y apellido son requeridos para persona.' },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    if (isCompany) {
+      if (!dto.company_name || !dto.contact_name) {
+        throw new HttpException(
+          { message: 'Datos de empresa incompletos.' },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+
+    const [existingEmail, existingDoc] = await Promise.all([
+      this.userModel.findOne({ email: dto.email }).lean(),
+      dto.document_number
+        ? this.userModel.findOne({ document_number: dto.document_number }).lean()
+        : null,
+    ]);
+
+    if (existingEmail) {
+      throw new HttpException(
+        {
+          code: errorCodes.EMAIL_ALREADY_EXISTS,
+          message: 'El correo ya fue registrado previamente.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (existingDoc) {
+      throw new HttpException(
+        {
+          code: errorCodes.DOCUMENT_NUMBER_ALREADY_EXISTS,
+          message: 'El número de documento ya fue registrado previamente.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+
+    const addresses = dto.addresses ?? [];
+    const defaultAddresses = addresses.filter((address) => address.is_default);
+
+    if (defaultAddresses.length > 1) {
+      throw new HttpException(
+        {
+          message: 'Solo una dirección puede marcarse como predeterminada.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const normalizedAddresses =
+      addresses.length > 0
+        ? addresses.map((address, index) => ({
+          ...address,
+          is_default:
+            defaultAddresses.length === 0 ? index === 0 : !!address.is_default,
+        }))
+        : [];
+
+    const password = dto.password || generateRandomPassword();
+
+
+    let firebaseUid: string;
     try {
-      // 1. Validar datos según tipo de cliente
-      const isPerson = dto.client_type === ClientType.PERSONA;
-      const isCompany = dto.client_type === ClientType.EMPRESA;
-
-      if (isPerson) {
-        if (!dto.first_name || !dto.last_name) {
-          throw new HttpException(
-            { message: 'Nombre y apellido son requeridos para persona.' },
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-      }
-
-      if (isCompany) {
-        if (!dto.company_name || !dto.contact_name) {
-          throw new HttpException(
-            { message: 'Datos de empresa incompletos.' },
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-      }
-
-      // 2. Validar únicos
-      const [existingEmail, existingDoc] = await Promise.all([
-        this.userModel.findOne({ email: dto.email }).lean(),
-        dto.document_number
-          ? this.userModel.findOne({ document_number: dto.document_number }).lean()
-          : null,
-      ]);
-
-      if (existingEmail) {
-        throw new HttpException(
-          {
-            code: errorCodes.EMAIL_ALREADY_EXISTS,
-            message: 'El correo ya fue registrado previamente.',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      if (existingDoc) {
-        throw new HttpException(
-          {
-            code: errorCodes.DOCUMENT_NUMBER_ALREADY_EXISTS,
-            message: 'El número de documento ya fue registrado previamente.',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      // 3. Direcciones
-      const addresses = dto.addresses ?? [];
-      const defaultAddresses = addresses.filter((address) => address.is_default);
-
-      if (defaultAddresses.length > 1) {
-        throw new HttpException(
-          {
-            message: 'Solo una dirección puede marcarse como predeterminada.',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      const normalizedAddresses =
-        addresses.length > 0
-          ? addresses.map((address, index) => ({
-              ...address,
-              is_default:
-                defaultAddresses.length === 0 ? index === 0 : !!address.is_default,
-            }))
-          : [];
-
-      // 4. Password
-      const password = generateRandomPassword();
-
-      // 5. Firebase
       const firebaseUser = await this.authService.createUserWithEmail({
         email: dto.email,
         password,
       });
 
-      if (!firebaseUser.success || !firebaseUser.uid) {
+      if (firebaseUser.success && firebaseUser.uid) {
+        firebaseUid = firebaseUser.uid;
+      } else if (firebaseUser.message.includes('already in use')) {
+        const existingAuth = await this.authService.getUserByEmail(dto.email);
+        if (existingAuth.success && existingAuth.uid) {
+          firebaseUid = existingAuth.uid;
+          const passwordUpdate = await this.authService.updateUserPassword(firebaseUid, password);
+          if (!passwordUpdate.success) {
+            throw new InternalServerErrorException(
+              `No se pudo actualizar la contraseña del usuario existente en Firebase: ${passwordUpdate.message}`,
+            );
+          }
+        } else {
+          throw new InternalServerErrorException(
+            `Usuario existe en Firebase pero no pudimos recuperar su UID: ${existingAuth.message}`,
+          );
+        }
+      } else {
         throw new InternalServerErrorException(firebaseUser.message);
       }
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(`Error en Firebase: ${error.message}`);
+    }
 
-      // 6. Transacción Mongo
+
+    const session = await this.userModel.db.startSession();
+    session.startTransaction();
+
+    try {
       const createdUsers = await this.userModel.create(
         [
           {
-            auth_id: firebaseUser.uid,
+            auth_id: firebaseUid,
             email: dto.email,
             first_name: dto.first_name,
             last_name: dto.last_name,
@@ -465,7 +521,6 @@ export class ClientService {
 
       const client = createdClients[0];
 
-      // CLIENTE EMPRESA
       if (isCompany) {
         await this.companyModel.create(
           [
@@ -479,24 +534,23 @@ export class ClientService {
         );
       }
 
-      // DIRECCIONES
-      // if (normalizedAddresses.length > 0) {
-      //   const addressDocs = normalizedAddresses.map((address) => ({
-      //     id_client: client._id, 
-      //     address_line: address.address_line,
-      //     reference: address.reference ?? null,
-      //     department: address.department ?? null,
-      //     province: address.province ?? null,
-      //     district: address.district ?? null,
-      //     is_default: !!address.is_default,
-      //   }));
+      if (normalizedAddresses.length > 0) {
+        const addressDocs = normalizedAddresses.map((address) => ({
+          id_client: client._id,
+          address_line: address.address_line,
+          reference: address.reference ?? null,
+          department: address.department ?? null,
+          province: address.province ?? null,
+          district: address.district ?? null,
+          is_default: !!address.is_default,
+        }));
 
-      //   await this.addressModel.insertMany(addressDocs, { session });
-      // }
+        await this.addressModel.insertMany(addressDocs, { session });
+      }
 
       await session.commitTransaction();
 
-      // 7. Enviar credenciales
+
       await this.temporalCredentialsQueue.add(
         'sendTemporalCredentials',
         {
@@ -513,14 +567,8 @@ export class ClientService {
       return newUser;
     } catch (error) {
       await session.abortTransaction();
-
-      if (error instanceof HttpException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        `Error creating client: ${error.message}`,
-      );
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(`Error creating client: ${error.message}`);
     } finally {
       session.endSession();
     }
@@ -546,9 +594,10 @@ export class ClientService {
       // Validar email único
       if (emailChanged) {
         const existingEmail = await this.userModel
-          .findOne({ 
-            email: dto.email, 
-            _id: { $ne: toObjectId(idUser) } })
+          .findOne({
+            email: dto.email,
+            _id: { $ne: toObjectId(idUser) }
+          })
           .lean();
 
         if (existingEmail) {
@@ -597,7 +646,6 @@ export class ClientService {
           throw new InternalServerErrorException(firebaseUpdate.message);
         }
 
-        // Solo genera password si realmente también la vas a actualizar en Firebase
         newPassword = generateRandomPassword();
 
         const firebasePasswordUpdate = await this.authService.updateUserPassword(
@@ -668,6 +716,22 @@ export class ClientService {
         await this.companyModel.deleteOne({ id_client: client._id }).session(session);
       }
 
+      if (dto.addresses) {
+        await this.addressModel.deleteMany({ id_client: client._id }).session(session);
+        if (dto.addresses.length > 0) {
+          const addressDocs = dto.addresses.map((address) => ({
+            id_client: client._id,
+            address_line: address.address_line,
+            reference: address.reference ?? null,
+            department: address.department ?? null,
+            province: address.province ?? null,
+            district: address.district ?? null,
+            is_default: !!address.is_default,
+          }));
+          await this.addressModel.insertMany(addressDocs, { session });
+        }
+      }
+
       await session.commitTransaction();
 
       if (emailChanged && newPassword) {
@@ -681,14 +745,8 @@ export class ClientService {
       return updatedUser;
     } catch (error) {
       await session.abortTransaction();
-
-      if (error instanceof HttpException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        `Error updating client: ${error.message}`,
-      );
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(`Error updating client: ${error.message}`);
     } finally {
       session.endSession();
     }
