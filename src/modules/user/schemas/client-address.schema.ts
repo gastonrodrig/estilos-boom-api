@@ -12,19 +12,19 @@ export class ClientAddress {
   id_client: Types.ObjectId;
 
   @Prop({ required: true })
-  address: string;
+  address_line: string;
 
   @Prop()
-  city: string;
+  reference: string;
 
   @Prop()
-  state: string;
+  department: string;
 
   @Prop()
-  postal_code: string;
+  province: string;
 
   @Prop()
-  country: string;
+  district: string;
 
   @Prop({ default: false })
   is_default: boolean;

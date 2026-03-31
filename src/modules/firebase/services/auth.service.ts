@@ -56,10 +56,26 @@ export class AuthService {
       };
     }
   }
-  
+
+  async getUserByEmail(email: string): Promise<{ success: boolean; uid?: string; message: string }> {
+    try {
+      const userRecord = await admin.auth().getUserByEmail(email);
+      return {
+        success: true,
+        uid: userRecord.uid,
+        message: 'Usuario encontrado correctamente',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Error al buscar el usuario',
+      };
+    }
+  }
+
   async generatePasswordResetLink(email: string): Promise<string> {
     const firebaseLink = await admin.auth().generatePasswordResetLink(email);
-    
+
     const oobCode = new URL(firebaseLink).searchParams.get('oobCode');
     if (!oobCode) throw new Error('No se pudo extraer oobCode');
 

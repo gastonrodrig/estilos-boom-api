@@ -61,6 +61,11 @@ export class CreateClientAdminDto {
   @IsOptional()
   document_number?: string;
 
+  @ApiPropertyOptional({ example: '123456' })
+  @IsString()
+  @IsOptional()
+  password?: string;
+
   @ApiPropertyOptional({
     type: [CreateClientAddressAdminDto],
     example: [
