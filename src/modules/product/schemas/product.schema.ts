@@ -32,6 +32,29 @@ export class Product {
   @Prop({ type: [String] })
   images: string[];
 
+  @Prop({ required: true, enum: ['MUJER', 'HOMBRE', 'UNISEX'] })
+  gender: string; 
+
+  @Prop()
+  style_type: string; // Ej: 'CASUAL PREMIUM' (visto en tu imagen)
+
+  @Prop()
+  composition: string; // Ej: '95% ALGODÓN, 5% ELASTANO'
+
+  @Prop()
+  season: string; // Ej: 'PRIMAVERA 2026'
+
+  // --- BENEFICIOS / BULLET POINTS (Los puntos rosas de la Imagen 1) ---
+  @Prop({ type: [String] })
+  highlights: string[]; 
+
+  // --- FLEXIBILIDAD EXTRA ---
+  @Prop({ type: Map, of: String })
+  technical_details: Map<string, string>;
+
+  @Prop()
+  custom_size_guide_url: string;
+
   @Prop({ type: Types.ObjectId, ref: 'Category', required: true })
   id_category: Types.ObjectId;
 }
