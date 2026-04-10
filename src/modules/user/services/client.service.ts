@@ -375,7 +375,13 @@ export class ClientService {
     }
   }
 
+  // ... (resto de tus imports y código arriba)
+
   async createClientAdmin(dto: CreateClientAdminDto): Promise<User> {
+    // 🔍 LOG BACKEND: Para ver qué llega exactamente
+    console.log('--- NUEVA PETICIÓN CREATE CLIENT ADMIN ---');
+    console.log('Payload recibido:', JSON.stringify(dto, null, 2));
+
     const isPerson = dto.client_type === ClientType.PERSONA;
     const isCompany = dto.client_type === ClientType.EMPRESA;
 
@@ -396,7 +402,6 @@ export class ClientService {
         );
       }
     }
-
 
     const [existingEmail, existingDoc] = await Promise.all([
       this.userModel.findOne({ email: dto.email }).lean(),
@@ -425,7 +430,6 @@ export class ClientService {
       );
     }
 
-
     const addresses = dto.addresses ?? [];
     const defaultAddresses = addresses.filter((address) => address.is_default);
 
@@ -441,14 +445,12 @@ export class ClientService {
     const normalizedAddresses =
       addresses.length > 0
         ? addresses.map((address, index) => ({
-          ...address,
-          is_default:
-            defaultAddresses.length === 0 ? index === 0 : !!address.is_default,
-        }))
+            ...address,
+            is_default: defaultAddresses.length === 0 ? index === 0 : !!address.is_default,
+          }))
         : [];
 
     const password = dto.password || generateRandomPassword();
-
 
     let firebaseUid: string;
     try {
@@ -482,9 +484,9 @@ export class ClientService {
       throw new InternalServerErrorException(`Error en Firebase: ${error.message}`);
     }
 
-
     const session = await this.userModel.db.startSession();
     session.startTransaction();
+    let newUser; // Necesitamos esta variable fuera del try para retornarla al final
 
     try {
       const createdUsers = await this.userModel.create(
@@ -504,7 +506,7 @@ export class ClientService {
         { session },
       );
 
-      const newUser = createdUsers[0];
+      newUser = createdUsers[0];
 
       const createdClients = await this.clientModel.create(
         [
@@ -548,9 +550,26 @@ export class ClientService {
         await this.addressModel.insertMany(addressDocs, { session });
       }
 
+      // ✅ CAMBIO CRÍTICO 1: Confirmamos la transacción de Mongo AHORA
       await session.commitTransaction();
+      console.log('✅ Cliente guardado exitosamente en MongoDB');
+    } catch (error) {
+      // Si algo falló guardando en Mongo, cancelamos.
+      await session.abortTransaction();
+      session.endSession(); // Limpiamos la sesión
+      
+      console.error('❌ Error guardando en Mongo:', error);
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(`Error creating client: ${error.message}`);
+    }
 
+    // ✅ CAMBIO CRÍTICO 2: Limpiamos la sesión porque ya guardamos todo.
+    session.endSession();
 
+    // ✅ CAMBIO CRÍTICO 3: Bloque independiente para la cola de Redis.
+    // Si esto falla, el cliente YA existe y el Frontend recibe éxito.
+    try {
+      console.log('Intentando encolar correo en Redis...');
       await this.temporalCredentialsQueue.add(
         'sendTemporalCredentials',
         {
@@ -563,16 +582,17 @@ export class ClientService {
           backoff: { type: 'exponential', delay: 2000 },
         },
       );
-
-      return newUser;
-    } catch (error) {
-      await session.abortTransaction();
-      if (error instanceof HttpException) throw error;
-      throw new InternalServerErrorException(`Error creating client: ${error.message}`);
-    } finally {
-      session.endSession();
+      console.log('✅ Correo encolado correctamente.');
+    } catch (queueError) {
+      console.error('⚠️ Cliente creado, pero falló Redis (Correo no enviado):', queueError.message);
+      // NO hacemos throw aquí para no interrumpir el flujo.
     }
+
+    // Retornamos el usuario al Frontend, haya funcionado Redis o no.
+    return newUser;
   }
+
+// ... (el updateClientAdmin déjalo como lo tienes)
 
   async updateClientAdmin(idUser: string, dto: UpdateClientAdminDto): Promise<User> {
     const session = await this.userModel.db.startSession();
