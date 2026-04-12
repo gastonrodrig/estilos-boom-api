@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { Roles } from 'src/core/constants/app.constants';
 
 export type UserDocument = User & Document;
 
@@ -29,8 +30,8 @@ export class User {
   @Prop({ unique: true, sparse: true })
   document_number: string;
 
-  @Prop()
-  role: string;
+  @Prop({ enum: Roles })
+  role: Roles;
 
   @Prop({ default: 'Activo' })
   status: string;

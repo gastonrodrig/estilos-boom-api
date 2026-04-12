@@ -16,6 +16,9 @@ export class Category {
 
   @Prop({ default: true })
   status: boolean;
+
+  @Prop()
+  size_guide_url: string;
 }
 
 export const CategorySchema = SchemaFactory.createForClass(Category);

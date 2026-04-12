@@ -50,7 +50,7 @@ export class ClientController {
 
   @Patch('reset-password-flag/:uid')
   @ApiBearerAuth('firebase-auth')
-  @AuthRoles(Roles.ADMIN)
+  @AuthRoles(Roles.ADMIN, Roles.CLIENT)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Resetear el flag de cambio de contraseña para un usuario',
@@ -126,7 +126,8 @@ export class ClientController {
   }
 
   @Patch('client-admin/:id')
-  @Public()
+  @ApiBearerAuth('firebase-auth')
+  @AuthRoles(Roles.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Actualizar un cliente por ID' })
   update(

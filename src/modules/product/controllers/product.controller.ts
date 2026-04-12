@@ -15,11 +15,11 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 @Controller('products')
 export class ProductController {
   constructor(private readonly productService: ProductService) { }
-  
-  @ApiOperation({ summary: 'Crear un producto con sus variantes e imágenes' })
+
+  @ApiOperation({ summary: 'Crear un producto con detalles técnicos e imágenes' })
   @Public()
   @Post()
-  @ApiConsumes('multipart/form-data') // 1. Indica que recibimos archivos
+  @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
@@ -28,46 +28,88 @@ export class ProductController {
         description: { type: 'string', example: 'Vestido largo elegante' },
         sku: { type: 'string', example: 'VEST-GALA-01' },
         base_price: { type: 'number', example: 120.50 },
-        id_category: { type: 'string', example: 'uuid-de-la-categoria' },
+        id_category: { type: 'string', example: 'id-de-mongo' },
+        // --- NUEVOS CAMPOS EN SWAGGER ---
+        gender: { type: 'string', enum: ['MUJER', 'HOMBRE', 'UNISEX'], example: 'MUJER' },
+        style_type: { type: 'string', example: 'CASUAL PREMIUM' },
+        composition: { type: 'string', example: '95% ALGODÓN, 5% ELASTANO' },
+        season: { type: 'string', example: 'PRIMAVERA 2026' },
+        highlights: { 
+          type: 'string', 
+          description: 'Array en JSON: ["Tejido suave", "Corte entallado"]' 
+        },
+        custom_size_guide_url: { type: 'string', description: 'URL de imagen si es guía especial' },
+        // -------------------------------
         is_best_seller: { type: 'boolean', example: false },
         is_new_in: { type: 'boolean', example: true },
-        // Enviamos las variantes como un string JSON
         variants: {
           type: 'string',
           description: 'JSON de variantes: [{"size":"S","color":"Negro","stock":10,"sku_variant":"V1"}]'
         },
-        // 2. Aquí es donde aparece el botón de "Elegir Archivo"
         files: {
           type: 'array',
-          items: {
-            type: 'string',
-            format: 'binary',
-          },
+          items: { type: 'string', format: 'binary' },
         },
       },
-      required: ['name', 'sku', 'base_price', 'id_category', 'files'],
+      required: ['name', 'sku', 'base_price', 'id_category', 'gender', 'files'],
     },
   })
   @UseInterceptors(FilesInterceptor('files', 5))
   async create(
     @UploadedFiles() files: Express.Multer.File[],
-    @Body() body: any // Usamos 'any' para procesar los strings del multipart
+    @Body() body: any 
   ) {
     if (!files || files.length === 0) {
-      throw new BadRequestException('Debes subir al menos una imagen para el producto.');
+      throw new BadRequestException('Debes subir al menos una imagen.');
     }
 
-    // 3. TRANSFORMACIÓN: Convertimos los strings a sus tipos reales
+    const parseJsonField = (field: any) => {
+  if (!field || typeof field !== 'string') return field;
+  
+  // Si parece un JSON (empieza con [ o {), intentamos parsearlo
+  if (field.startsWith('[') || field.startsWith('{')) {
+    try {
+      return JSON.parse(field);
+    } catch (e) {
+      return [field]; 
+    }
+  }
+  
+  // Si NO es JSON pero tiene comas, lo convertimos en array por comas
+  if (field.includes(',')) {
+    return field.split(',').map(item => item.trim());
+  }
+
+  // Si es solo un texto normal, lo metemos en un array
+  return [field];
+};
+
+    // TRANSFORMACIÓN MANUAL (Por ser multipart/form-data)
     const createProductDto: CreateProductDto = {
       ...body,
       base_price: Number(body.base_price),
       is_best_seller: body.is_best_seller === 'true' || body.is_best_seller === true,
       is_new_in: body.is_new_in === 'true' || body.is_new_in === true,
-      // Parseamos las variantes si vienen como string
-      variants: typeof body.variants === 'string' ? JSON.parse(body.variants) : body.variants,
+      // Parsear JSONs que vienen como strings
+      variants: parseJsonField(body.variants),
+      highlights: parseJsonField(body.highlights), 
+  technical_details: parseJsonField(body.technical_details),
     };
 
     return this.productService.create(createProductDto, files);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Obtener todos los productos con filtros avanzados' })
+  @Public()
+  @ApiQuery({ name: 'category', required: false })
+  @ApiQuery({ name: 'gender', required: false, enum: ['MUJER', 'HOMBRE', 'UNISEX'] }) // 👈 Nuevo
+  @ApiQuery({ name: 'season', required: false }) // 👈 Nuevo
+  @ApiQuery({ name: 'maxPrice', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'offset', required: false, type: Number })
+  async findAll(@Query() query: any) {
+    return this.productService.findAll(query);
   }
 
   @ApiOperation({ summary: 'Actualizar producto, imágenes y variantes (Borrón y cuenta nueva)' })
@@ -123,25 +165,7 @@ export class ProductController {
     return this.productService.update(id, updateDto, files);
   }
 
-  @Get()
-  @ApiOperation({ summary: 'Obtener todos los productos con filtros y paginación' })
-  @Public()
-  // Definimos los parámetros para Swagger como opcionales
-  @ApiQuery({ name: 'category', required: false, type: String })
-  @ApiQuery({ name: 'section', required: false, type: String })
-  @ApiQuery({ name: 'maxPrice', required: false, type: Number })
-  @ApiQuery({ name: 'colors', required: false, isArray: true, type: String })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Cantidad de items' })
-  @ApiQuery({ name: 'offset', required: false, type: Number, description: 'Desde qué item empezar' })
-  async findAll(@Query() query: any) {
-    // 🔍 Log de depuración para ver qué llega desde el Front o Swagger
-    console.log('--- Nueva Petición de Productos ---');
-    console.log('Query Params:', query);
-
-    // Pasamos todo el objeto query directamente. 
-    // El Service se encargará de desestructurar y convertir tipos.
-    return this.productService.findAll(query);
-  }
+  
 
   @Get(':id')
   @Public()

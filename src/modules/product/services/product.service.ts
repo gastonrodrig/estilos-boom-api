@@ -13,6 +13,7 @@ import {
 } from '../schemas';
 import { CategoryDocument, Category } from '../schemas';
 import { StorageService } from 'src/modules/firebase/services';
+import { CreateProductDto,UpdateCategoryDto,UpdateProductDto } from '../dto';
 
 @Injectable()
 export class ProductService {
@@ -60,23 +61,34 @@ export class ProductService {
   }
 
   async findAll(query: any = {}) {
-    const { category, section, maxPrice, colors, limit, offset } = query;
-    const filter: any = { is_active: true };
+    const { category, section, maxPrice, colors, limit, offset, gender, season } = query;
+  const filter: any = { is_active: true };
 
-    if (category) {
-      const categoryDoc = await this.categoryModel.findOne({
-        name: new RegExp(`^${category}$`, 'i'),
-      });
+  // 1. Filtros Globales (Fuera de cualquier IF de categoría)
+  if (gender) {
+    filter.gender = gender.toUpperCase();
+  }
 
-      if (categoryDoc) {
-        filter.$or = [
-          { id_category: categoryDoc._id },
-          { id_category: categoryDoc._id.toString() },
-        ];
-      } else {
-        return { items: [], total: 0 };
-      }
+  if (season) {
+    filter.season = new RegExp(season, 'i');
+  }
+
+  if (maxPrice) {
+    filter.base_price = { $lte: Number(maxPrice) };
+  }
+
+  // 2. Filtro de Categoría
+  if (category) {
+    const categoryDoc = await this.categoryModel.findOne({
+      name: new RegExp(`^${category}$`, 'i'),
+    });
+
+    if (categoryDoc) {
+      filter.id_category = categoryDoc._id; // Simplificado
+    } else {
+      return { items: [], total: 0 };
     }
+  }
 
     if (section === 'new-in') {
       filter.is_new_in = true;
@@ -148,7 +160,7 @@ async findOne(id: string) {
   return result;
 }
 
-  async create(dto: any, files: Express.Multer.File[] = []) {
+  async create(dto: CreateProductDto, files: Express.Multer.File[] = []) {
     try {
       const imageUrls = await this.storageService.uploadMultipleFiles(
         'products',
@@ -159,16 +171,18 @@ async findOne(id: string) {
       const product = new this.productModel({
         ...dto,
         images: imageUrls.map((file: any) => file.url),
+        
       });
 
       const savedProduct = await product.save();
+      const rawDto = dto as any;
 
       const rawVariantsInput =
-        dto.variants ??
-        dto.variant ??
-        dto.product_variants ??
-        dto.productVariants ??
-        '[]';
+      rawDto.variants ??
+      rawDto.variant ??
+      rawDto.product_variants ??
+      rawDto.productVariants ??
+      '[]';
 
       let rawVariants: any[] = [];
       if (Array.isArray(rawVariantsInput)) {
@@ -209,7 +223,7 @@ async findOne(id: string) {
     }
   }
 
-  async update(id: string, dto: any, files: Express.Multer.File[] = []) {
+  async update(id: string, dto: UpdateProductDto, files: Express.Multer.File[] = []) {
     try {
       const product = await this.productModel.findById(id);
       if (!product) throw new NotFoundException('Producto no encontrado');
@@ -233,11 +247,14 @@ async findOne(id: string) {
 
       if (!updatedProduct) throw new NotFoundException('Producto no encontrado');
 
+      const rawDto = dto as any;
+
       const rawVariantsInput =
-        dto.variants ??
-        dto.variant ??
-        dto.product_variants ??
-        dto.productVariants;
+      rawDto.variants ??
+      rawDto.variant ??
+      rawDto.product_variants ??
+      rawDto.productVariants ??
+      '[]';
 
       if (rawVariantsInput !== undefined) {
         let rawVariants: any[] = [];

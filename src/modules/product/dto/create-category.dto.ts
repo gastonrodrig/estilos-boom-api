@@ -11,4 +11,13 @@ export class CreateCategoryDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiProperty({ 
+    example: 'https://cdn.estilosboom.com/guides/dresses.jpg', 
+    description: 'Guía de tallas por defecto para esta categoría',
+    required: false 
+  })
+  @IsString()
+  @IsOptional()
+  default_size_guide_url?: string;
 }
