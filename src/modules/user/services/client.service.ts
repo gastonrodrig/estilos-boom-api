@@ -6,6 +6,7 @@ import {
   InternalServerErrorException,
   Inject,
   forwardRef,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -769,6 +770,28 @@ export class ClientService {
       throw new InternalServerErrorException(`Error updating client: ${error.message}`);
     } finally {
       session.endSession();
+    }
+  }
+
+  async getMyAddresses(authId: string): Promise<ClientAddress[]> {
+    try {
+      // 1. Buscamos al usuario por su ID de Firebase
+      const user = await this.userModel.findOne({ auth_id: authId }).lean();
+      if (!user) {
+        throw new NotFoundException('Usuario no encontrado');
+      }
+
+      // 2. Buscamos su perfil de cliente
+      const client = await this.clientModel.findOne({ id_user: user._id }).lean();
+      if (!client) {
+        return []; // Si no es cliente aún, no tiene direcciones
+      }
+
+      // 3. Buscamos y retornamos sus direcciones
+      const addresses = await this.addressModel.find({ id_client: client._id }).lean();
+      return addresses as ClientAddress[];
+    } catch (error) {
+      throw new InternalServerErrorException(`Error al obtener direcciones: ${error.message}`);
     }
   }
 }

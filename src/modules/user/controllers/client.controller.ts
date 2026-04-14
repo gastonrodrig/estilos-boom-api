@@ -10,6 +10,7 @@ import {
   Query,
   DefaultValuePipe,
   ParseIntPipe,
+  Req,
 } from '@nestjs/common';
 import { AuthRoles } from 'src/auth/decorators';
 import { ClientService } from '../services';
@@ -135,5 +136,16 @@ export class ClientController {
     @Body() dto: UpdateClientAdminDto,
   ) {
     return this.clientService.updateClientAdmin(id, dto);
+  }
+
+  @Get('my-addresses')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('firebase-auth')
+  @ApiOperation({ summary: 'Obtener las direcciones del usuario autenticado' })
+  async getMyAddresses(@Req() req: any) {
+    // El token de Firebase validado nos deja el UID aquí:
+    const authId = req.user.uid || req.user.user_id; 
+    
+    return this.clientService.getMyAddresses(authId);
   }
 }
