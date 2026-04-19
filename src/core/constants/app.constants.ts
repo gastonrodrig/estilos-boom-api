@@ -23,36 +23,57 @@ export enum DocType {
 export const ROLE_PERMISSIONS = {
   [Roles.ADMIN]: [
     'dashboard:view',
-    // Productos y Categorías
-    'products:view', 'products:manage',
-    'categories:view', 'categories:manage',
-    // Almacén
-    'inventory:view', 'inventory:manage',
-    // Órdenes
+    // Categorías
+    'categories:view', 'categories:edit',
+    
+    // Productos
+    'products:view', 
+    'products:add',    // Pantalla de creación con variantes
+    'products:edit',   // Pantalla de edición con variantes
+    
+    // Inventario (Dividido según documento)
+    'products_inventory:view', 
+    'products_inventory:update',
+    'supplies_inventory:view', 
+    'supplies_inventory:create', 
+    'supplies_inventory:update',
+    
+    // Abastecimiento (Módulo Nuevo)
+    'procurement:view', 
+    'procurement:create', 
+    'procurement:update', // Confirmar, rechazar y recibir
+    
+    // Producción
+    'production:view', 
+    'production:create', 
+    'production:update',
+    
+    // Mantengo los que ya tenías para órdenes y clientes
     'orders:view', 'orders:manage',
-    'payments:verify', // Específico de órdenes recientes
-    // Cotizaciones
+    'payments:verify',
     'quotations:view', 'quotations:manage', 'quotations:verify-payment',
-    // Pagos
     'payments:view', 'payments:manage',
-    // Clientes
     'clients:view', 'clients:manage',
-    // Reseñas
     'reviews:view'
   ],
 
   [Roles.CLIENT]: [
     'dashboard:view',
     'orders:view',
-    'payments:create', // "Realizar pagos" en la captura
+    'payments:create',
     'quotations:view',
-    'profile:view', 'profile:manage' // Info personal y direcciones
+    'profile:view', 'profile:manage'
   ],
 
-  [Roles.WORKER]: [ // Mapeado al "Módulo de Almacenero"
+  [Roles.WORKER]: [ // Rol Almacenero
     'dashboard:view',
     'workshops:view',
-    'production:view', 'production:update',
-    'inventory:view', 'inventory:update'
+    // Producción (ahora con create según el flujo operativo)
+    'production:view', 'production:create', 'production:update',
+    // Inventario Operativo
+    'products_inventory:view', 'products_inventory:update',
+    'supplies_inventory:view', 'supplies_inventory:update',
+    // Abastecimiento (para que pueda recibir el material)
+    'procurement:view', 'procurement:update'
   ]
 };
