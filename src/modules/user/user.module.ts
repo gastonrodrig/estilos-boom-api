@@ -5,6 +5,7 @@ import { ClientService } from './services/client.service';
 import { WorkerService } from './services/worker.service';
 import { ClientController } from './controllers/client.controller';
 import { WorkerController } from './controllers/worker.controller';
+import { UserController } from './controllers/user.controller';
 import { User, UserSchema } from './schemas/user.schema';
 import { Client, ClientSchema } from './schemas/client.schema';
 import { Worker, WorkerSchema } from './schemas/worker.schema';
@@ -30,7 +31,7 @@ import { CartModule } from '../cart/cart.module';
     FirebaseModule,
     CartModule,
   ],
-  controllers: [ClientController, WorkerController],
+  controllers: [ClientController, WorkerController, UserController],
   providers: [ClientService, WorkerService],
   exports: [ClientService, WorkerService, MongooseModule],
 })
