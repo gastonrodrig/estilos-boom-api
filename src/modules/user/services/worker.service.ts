@@ -17,11 +17,19 @@ export class WorkerService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Worker.name) private workerModel: Model<WorkerDocument>,
-  ) {}
+  ) { }
 
   async findAll() {
     try {
       return await this.workerModel.find().populate('id_user').exec();
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  async findAllUsers() {
+    try {
+      return await this.userModel.find().exec();
     } catch (error) {
       throw new InternalServerErrorException(error.message);
     }

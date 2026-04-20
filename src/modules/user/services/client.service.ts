@@ -147,15 +147,8 @@ export class ClientService {
         );
       }
 
-      if (user.role !== Roles.CLIENT) {
-        throw new HttpException(
-          {
-            code: errorCodes.USER_IS_NOT_CLIENT,
-            message: 'Este correo no pertenece a un cliente.',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+      // Se eliminó la restricción de Roles.CLIENT para permitir que todos los roles 
+      // (Admin, Worker, etc) puedan recuperar su contraseña.
 
       const resetLink = await this.authService.generatePasswordResetLink(email);
 

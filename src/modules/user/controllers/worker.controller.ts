@@ -10,7 +10,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { WorkerService } from '../services/worker.service';
 import { CreateWorkerDto, UpdateWorkerDto } from '../dtos';
-import { AuthRoles } from 'src/auth/decorators';
+import { AuthRoles, Public } from 'src/auth/decorators';
 import { Roles } from 'src/core/constants/app.constants';
 
 @ApiTags('Workers')
@@ -18,7 +18,7 @@ import { Roles } from 'src/core/constants/app.constants';
 @ApiBearerAuth('firebase-auth')
 @AuthRoles(Roles.ADMIN)
 export class WorkerController {
-  constructor(private readonly workerService: WorkerService) {}
+  constructor(private readonly workerService: WorkerService) { }
 
   @Post()
   @ApiOperation({ summary: 'Registrar un nuevo trabajador' })
@@ -26,6 +26,7 @@ export class WorkerController {
     return this.workerService.createWorker(dto);
   }
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Listar todos los trabajadores' })
   findAll() {
