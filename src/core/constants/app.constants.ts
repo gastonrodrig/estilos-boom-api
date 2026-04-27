@@ -7,7 +7,7 @@ export const API_PREFIX = 'api/v1';
 export enum Roles {
   ADMIN = 'Administrador',
   CLIENT = 'Cliente',
-  WORKER = 'Trabajador'
+  WORKER = 'Almacenero'
 }
 
 export enum Estado {
@@ -25,29 +25,29 @@ export const ROLE_PERMISSIONS = {
     'dashboard:view',
     // Categorías
     'categories:view', 'categories:edit',
-    
+
     // Productos
-    'products:view', 
+    'products:view',
     'products:add',    // Pantalla de creación con variantes
     'products:edit',   // Pantalla de edición con variantes
-    
+
     // Inventario (Dividido según documento)
-    'products_inventory:view', 
+    'products_inventory:view',
     'products_inventory:update',
-    'supplies_inventory:view', 
-    'supplies_inventory:create', 
+    'supplies_inventory:view',
+    'supplies_inventory:create',
     'supplies_inventory:update',
-    
+
     // Abastecimiento (Módulo Nuevo)
-    'procurement:view', 
-    'procurement:create', 
+    'procurement:view',
+    'procurement:create',
     'procurement:update', // Confirmar, rechazar y recibir
-    
+
     // Producción
-    'production:view', 
-    'production:create', 
+    'production:view',
+    'production:create',
     'production:update',
-    
+
     // Mantengo los que ya tenías para órdenes y clientes
     'orders:view', 'orders:manage',
     'payments:verify',
@@ -65,15 +65,9 @@ export const ROLE_PERMISSIONS = {
     'profile:view', 'profile:manage'
   ],
 
-  [Roles.WORKER]: [ // Rol Almacenero
+  [Roles.WORKER]: [ // Rol Almacenero - Reducido por seguridad
     'dashboard:view',
-    'workshops:view',
-    // Producción (ahora con create según el flujo operativo)
-    'production:view', 'production:create', 'production:update',
-    // Inventario Operativo
-    'products_inventory:view', 'products_inventory:update',
-    'supplies_inventory:view', 'supplies_inventory:update',
-    // Abastecimiento (para que pueda recibir el material)
-    'procurement:view', 'procurement:update'
+    'products_inventory:view',
+    'supplies_inventory:view'
   ]
 };

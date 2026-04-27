@@ -27,6 +27,7 @@ import { CartModule } from './modules/cart/cart.module';
       useFactory: (configService: ConfigService) => ({
         connection: {
           url: configService.get<string>('REDIS_URL'),
+          maxRetriesPerRequest: null,
         },
       }),
       inject: [ConfigService],
