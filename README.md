@@ -1,99 +1,139 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Estilos Boom API 🚀
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Este es el backend de **Estilos Boom**, una plataforma robusta construida con **NestJS** y **MongoDB**, diseñada para gestionar productos, usuarios, carritos de compra y más, con integración de Firebase y servicios de mensajería asíncrona.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## 🛠️ Tecnologías y Stack
+- **Framework:** [NestJS](https://nestjs.com/) (Node.js)
+- **Lenguaje:** TypeScript
+- **Base de Datos:** [MongoDB](https://www.mongodb.com/) con [Mongoose](https://mongoosejs.com/)
+- **Autenticación:** Firebase Admin SDK (Passport.js)
+- **Colas y Tareas:** [BullMQ](https://docs.bullmq.io/) (Redis)
+- **Documentación:** Swagger / OpenAPI
+- **Servicios Cloud:** Firebase Storage & Google Cloud APIs
+- **Correo:** Nodemailer
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## 📁 Estructura del Proyecto
 
-```bash
-$ npm install
+El proyecto sigue una arquitectura **modular**, facilitando la escalabilidad y el mantenimiento:
+
+```text
+src/
+├── auth/           # Lógica de autenticación (estrategias, guards, decoradores)
+├── config/         # Configuración global y validación de variables de entorno
+├── core/           # Elementos compartidos por toda la aplicación
+│   ├── common/     # Decoradores y utilidades comunes
+│   ├── constants/  # Constantes globales (nombres de apps, versiones)
+│   ├── filters/    # Filtros de excepciones globales
+│   ├── interceptors/ # Interceptores (ej. LoggingInterceptor)
+│   ├── interfaces/ # Interfaces genéricas
+│   └── utils/      # Funciones de ayuda (helpers)
+├── modules/        # Módulos funcionales de la aplicación
+│   ├── user/       # Gestión de usuarios, roles y clientes
+│   ├── product/    # Catálogo de productos y variantes
+│   ├── production/ # Gestión de fabricación, insumos y taller (Nuevo)
+│   ├── cart/       # Carrito de compras y procesos de checkout
+│   ├── firebase/   # Integración con Firebase Storage y Auth
+│   └── mail/       # Plantillas y envío de correos (vía BullMQ)
+├── main.ts         # Punto de entrada de la aplicación
+└── app.module.ts   # Módulo raíz que orquesta los demás módulos
 ```
 
-## Compile and run the project
+---
 
-```bash
-# development
-$ npm run start
+## 💻 Formato de Código y Estándares
 
-# watch mode
-$ npm run start:dev
+- **Clean Architecture:** Separación clara entre controladores (entrada), servicios (lógica de negocio) y repositorios/esquemas (datos).
+- **TypeScript:** Uso estricto de tipos e interfaces.
+- **DTOs (Data Transfer Objects):** Cada entrada de datos está validada mediante `class-validator` y `class-transformer`.
+- **Inyección de Dependencias:** Uso nativo de NestJS para desacoplar componentes.
+- **Programación Reactiva:** Uso de `RxJS` para flujos de datos asíncronos cuando es necesario.
 
-# production mode
-$ npm run start:prod
+---
+
+## 📊 Arquitectura de Datos (Schemas)
+
+Usamos **Mongoose** con decoradores de NestJS para definir los modelos. Los esquemas incluyen:
+- **Timestamps:** Registro automático de `created_at` y `updated_at`.
+- **Relaciones:** Uso de `Types.ObjectId` y `ref` para vincular documentos (ej. Variantes de producto -> Producto).
+- **Validación:** Restricciones directamente en el esquema (required, unique, default).
+
+**Ejemplo de Estructura (ProductVariant):**
+```typescript
+@Schema({ timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }, collection: 'ProductVariant' })
+export class ProductVariant {
+  @Prop({ required: true }) size: string;
+  @Prop({ required: true }) color: string;
+  @Prop({ default: 0 }) stock: number;
+  @Prop({ required: true, unique: true }) sku_variant: string;
+  @Prop({ type: Types.ObjectId, ref: 'Product', required: true }) id_product: Types.ObjectId;
+}
 ```
 
-## Run tests
+---
 
+## 🚀 Estado Actual del Desarrollo
+
+Actualmente, el backend cuenta con las siguientes funcionalidades operativas:
+
+1.  **Auth Module:** Autenticación fluida con Firebase.
+2.  **User Module:** Gestión de usuarios de sistema y clientes finales.
+3.  **Product Module:** CRUD de productos, gestión de categorías y variantes (tallas/colores).
+4.  **Cart Module:** Lógica para manejar carritos de compra persistentes.
+5.  **Mail Module:** Infraestructura preparada para envío de correos asíncronos (Bienvenida, Recuperación, etc.).
+6.  **Firebase Integration:** Subida de imágenes a Firebase Storage automatizada para productos.
+7.  **Production Module:** Gestión integral del ciclo de fabricación, control de materias primas, órdenes de taller y alertas automáticas de entrega.
+
+---
+
+## 🏁 Cómo Empezar
+
+### Requisitos
+- Node.js (v18+)
+- MongoDB corriendo localmente o en la nube.
+- Redis (para BullMQ).
+
+### Instalación
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm install
 ```
 
-## Deployment
+### Configuración
+Crea un archivo `.env` basado en los requerimientos del sistema:
+```env
+# APP
+PORT=3001
+NODE_ENV=development
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+# MONGO
+MONGO_URI=mongodb://localhost:27017/estilos-boom
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+# FIREBASE
+FIREBASE_CREDENTIALS_PATH=[BASE64_CERTIFICATE]
+FIREBASE_STORAGE_BUCKET=estilos-boom.appspot.com
 
-```bash
-$ npm install -g mau
-$ mau deploy
+# REDIS
+REDIS_HOST=localhost
+REDIS_PORT=6379
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### Ejecución
+```bash
+# Desarrollo con watch mode
+npm run start:dev
 
-## Resources
+# Producción
+npm run build
+npm run start:prod
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### 📖 Documentación API
+Una vez iniciada la aplicación, puedes acceder a la documentación interactiva (Swagger) en:
+`http://localhost:3001/api/docs`
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+---
 
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+¡Construido con ❤️ por el equipo de Estilos Boom!

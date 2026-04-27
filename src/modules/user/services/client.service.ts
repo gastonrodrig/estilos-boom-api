@@ -136,7 +136,32 @@ export class ClientService {
 
   async sendPasswordResetEmail(email: string): Promise<void> {
     try {
-      const user = await this.userModel.findOne({ email });
+      let user = await this.userModel.findOne({ email });
+
+      // 🛡️ MEJORA: Si no está en DB, verificamos si existe en Firebase
+      if (!user) {
+        const firebaseUser = await this.authService.getUserByEmail(email);
+
+        if (firebaseUser.success && firebaseUser.uid) {
+          // Creamos el usuario en base de datos manualmente para permitirle recuperar contraseña
+          const createdUsers = await this.userModel.create([{
+            auth_id: firebaseUser.uid,
+            email: email.toLowerCase(),
+            role: Roles.CLIENT,
+            status: Estado.ACTIVO,
+          }]);
+
+          user = createdUsers[0];
+
+          await this.clientModel.create({
+            id_user: user._id,
+            needs_password_change: false,
+            created_by_admin: false,
+            is_extra_data_completed: false,
+          });
+        }
+      }
+
       if (!user) {
         throw new HttpException(
           {
@@ -152,7 +177,7 @@ export class ClientService {
 
       const resetLink = await this.authService.generatePasswordResetLink(email);
 
-      await this.forgotPasswordQueue.add(
+      this.forgotPasswordQueue.add(
         'sendPasswordResetLink',
         {
           to: email,
@@ -164,7 +189,7 @@ export class ClientService {
           removeOnComplete: 1000,
           removeOnFail: 100,
         },
-      );
+      ).catch(err => console.error('⚠️ Falló Redis (Password Reset):', err.message));
     } catch (error) {
       if (error.message?.includes('Unable to create the email action link')) {
         throw new HttpException(
@@ -439,9 +464,9 @@ export class ClientService {
     const normalizedAddresses =
       addresses.length > 0
         ? addresses.map((address, index) => ({
-            ...address,
-            is_default: defaultAddresses.length === 0 ? index === 0 : !!address.is_default,
-          }))
+          ...address,
+          is_default: defaultAddresses.length === 0 ? index === 0 : !!address.is_default,
+        }))
         : [];
 
     const password = dto.password || generateRandomPassword();
@@ -551,7 +576,7 @@ export class ClientService {
       // Si algo falló guardando en Mongo, cancelamos.
       await session.abortTransaction();
       session.endSession(); // Limpiamos la sesión
-      
+
       console.error('❌ Error guardando en Mongo:', error);
       if (error instanceof HttpException) throw error;
       throw new InternalServerErrorException(`Error creating client: ${error.message}`);
@@ -564,7 +589,8 @@ export class ClientService {
     // Si esto falla, el cliente YA existe y el Frontend recibe éxito.
     try {
       console.log('Intentando encolar correo en Redis...');
-      await this.temporalCredentialsQueue.add(
+      // Quitamos el 'await' para que no bloquee la respuesta al frontend
+      this.temporalCredentialsQueue.add(
         'sendTemporalCredentials',
         {
           to: dto.email,
@@ -575,18 +601,22 @@ export class ClientService {
           attempts: 3,
           backoff: { type: 'exponential', delay: 2000 },
         },
-      );
-      console.log('✅ Correo encolado correctamente.');
+      ).then(() => {
+        console.log('✅ Correo encolado correctamente.');
+      }).catch((err) => {
+        console.error('⚠️ Falló Redis:', err.message);
+      });
     } catch (queueError) {
       console.error('⚠️ Cliente creado, pero falló Redis (Correo no enviado):', queueError.message);
       // NO hacemos throw aquí para no interrumpir el flujo.
     }
 
+    console.log('✅ Enviando respuesta exitosa al frontend para el usuario:', newUser.email);
     // Retornamos el usuario al Frontend, haya funcionado Redis o no.
     return newUser;
   }
 
-// ... (el updateClientAdmin déjalo como lo tienes)
+  // ... (el updateClientAdmin déjalo como lo tienes)
 
   async updateClientAdmin(idUser: string, dto: UpdateClientAdminDto): Promise<User> {
     const session = await this.userModel.db.startSession();
@@ -671,11 +701,11 @@ export class ClientService {
           throw new InternalServerErrorException(firebasePasswordUpdate.message);
         }
 
-        await this.securityQueue.add('sendEmailChangeNotification', {
+        this.securityQueue.add('sendEmailChangeNotification', {
           to: user.email,
           oldEmail: user.email,
           newEmail: dto.email,
-        });
+        }).catch(err => console.error('⚠️ Falló Redis (Security Notification):', err.message));
       }
 
       const updatedUser = await this.userModel.findByIdAndUpdate(
@@ -749,11 +779,11 @@ export class ClientService {
       await session.commitTransaction();
 
       if (emailChanged && newPassword) {
-        await this.temporalCredentialsQueue.add('sendTemporalCredentials', {
+        this.temporalCredentialsQueue.add('sendTemporalCredentials', {
           to: dto.email,
           email: dto.email,
           password: newPassword,
-        });
+        }).catch(err => console.error('⚠️ Falló Redis al actualizar:', err.message));
       }
 
       return updatedUser;
