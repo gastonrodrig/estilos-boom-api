@@ -14,8 +14,13 @@ export class ProductVariant {
   @Prop({ required: true })
   color: string;
 
+  // El stock real que está en los estantes del almacén
   @Prop({ default: 0 })
-  stock: number;
+  physical_stock: number;
+
+  // Productos ya vendidos/separados que aún no salen del almacén
+  @Prop({ default: 0 })
+  reserved_stock: number;
 
   @Prop({ required: true, unique: true })
   sku_variant: string;
@@ -26,3 +31,7 @@ export class ProductVariant {
 
 export const ProductVariantSchema =
   SchemaFactory.createForClass(ProductVariant);
+
+  ProductVariantSchema.virtual('available_stock').get(function (this: ProductVariantDocument) {
+  return this.physical_stock - this.reserved_stock;
+});

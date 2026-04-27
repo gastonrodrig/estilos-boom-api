@@ -21,6 +21,7 @@ export class WorkerController {
   constructor(private readonly workerService: WorkerService) { }
 
   @Post()
+  @Public()
   @ApiOperation({ summary: 'Registrar un nuevo trabajador' })
   create(@Body() dto: CreateWorkerDto) {
     return this.workerService.createWorker(dto);

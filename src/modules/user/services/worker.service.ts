@@ -11,6 +11,7 @@ import { User, UserDocument } from '../schemas/user.schema';
 import { Worker, WorkerDocument } from '../schemas/worker.schema';
 import { CreateWorkerDto, UpdateWorkerDto } from '../dtos';
 import { errorCodes } from 'src/core/common';
+import { Roles } from 'src/core/constants/app.constants';
 
 @Injectable()
 export class WorkerService {
@@ -68,16 +69,20 @@ export class WorkerService {
         email: dto.email,
         full_name: dto.full_name,
         phone: dto.phone,
-        role: 'WORKER',
-        is_active: true,
+        role: Roles.WORKER,
+        auth_id: `manual-${Date.now()}`, 
+        status: 'Activo',
+
       });
 
       const savedUser = await newUser.save({ session });
 
-      const newWorker = new this.workerModel({
-        id_user: savedUser._id,
-        is_active: true,
-      });
+    const newWorker = new this.workerModel({
+      id_user: savedUser._id,
+      // 3. Ajusta los campos según el schema de Worker que definimos
+      role: Roles.WORKER, 
+      employment_status: 'Activo',
+    });
 
       const savedWorker = await newWorker.save({ session });
 

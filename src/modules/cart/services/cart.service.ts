@@ -81,6 +81,10 @@ export class CartService {
       throw new NotFoundException("Variante no encontrada");
     }
 
+    // Calculamos el stock disponible para el snapshot
+    const physical = Number(variant.physical_stock ?? 0);
+    const reserved = Number(variant.reserved_stock ?? 0);
+
     return {
       name: product.name,
       price: Number(product.base_price ?? 0),
@@ -88,7 +92,8 @@ export class CartService {
         Array.isArray(product.images) && product.images.length > 0
           ? product.images[0]
           : null,
-      stock: Number(variant.stock ?? 0),
+      // Retornamos el disponible (lo que realmente se puede vender)
+      stock: physical - reserved, 
     };
   }
 

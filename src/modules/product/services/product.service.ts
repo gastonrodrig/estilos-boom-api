@@ -49,13 +49,20 @@ export class ProductService {
       byProductId.set(key, current);
     }
 
-    return products.map((product) => {
+      return products.map((product) => {
       const plain = product.toObject();
       const pId = product._id.toString();
+      const variants = byProductId.get(pId) ?? [];
+
+      // Agregamos el cálculo manualmente para el objeto plano
+      const variantsWithAvailable = variants.map(v => ({
+        ...v,
+        available_stock: v.physical_stock - v.reserved_stock // Cálculo al vuelo
+      }));
 
       return {
         ...plain,
-        variants: byProductId.get(pId) ?? [],
+        variants: variantsWithAvailable,
       };
     });
   }
@@ -201,7 +208,8 @@ async findOne(id: string) {
             id_product: savedProduct._id,
             size: String(v.size ?? ''),
             color: String(v.color ?? ''),
-            stock: Number(v.stock ?? 0),
+            physical_stock: Number(v.stock ?? 0), // CAMBIADO: de stock a physical_stock
+            reserved_stock: 0, // Inicializamos siempre en 0
             sku_variant: String(v.sku_variant ?? ''),
           })),
         );
@@ -271,16 +279,16 @@ async findOne(id: string) {
         await this.variantModel.deleteMany({ id_product: new Types.ObjectId(id) });
 
         if (rawVariants.length > 0) {
-          await this.variantModel.insertMany(
-            rawVariants.map((v: any) => ({
-              id_product: new Types.ObjectId(id),
-              size: String(v.size ?? ''),
-              color: String(v.color ?? ''),
-              stock: Number(v.stock ?? 0),
-              sku_variant: String(v.sku_variant ?? ''),
-            })),
-          );
-        }
+            await this.variantModel.insertMany(
+              rawVariants.map((v: any) => ({
+                id_product: new Types.ObjectId(id),
+                size: String(v.size ?? ''),
+                color: String(v.color ?? ''),
+                physical_stock: Number(v.stock ?? 0), // CAMBIADO
+                sku_variant: String(v.sku_variant ?? ''),
+              })),
+            );
+          }
       }
 
       const variants = await this.variantModel
@@ -299,11 +307,12 @@ async findOne(id: string) {
     }
   }
 
-  async updateVariantStock(idVariant: string, stock: number) {
+  async updateVariantStock(idVariant: string, quantity: number) {
     try {
+      // Usamos $inc para sumar al stock existente en lugar de sobrescribir
       const variant = await this.variantModel.findByIdAndUpdate(
         idVariant,
-        { stock },
+        { $inc: { physical_stock: quantity } }, // Incrementa el stock físico
         { new: true },
       );
       if (!variant) throw new NotFoundException('Variante no encontrada');

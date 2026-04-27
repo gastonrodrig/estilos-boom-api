@@ -11,6 +11,8 @@ import { MailModule } from './modules/mail/mail.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { FirebaseAuthGuard } from './auth/guards/firebase-auth.guard';
 import { CartModule } from './modules/cart/cart.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { SupplierModule } from './modules/supplier/supplier.module';
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { CartModule } from './modules/cart/cart.module';
     UserModule,
     FirebaseModule,
     CartModule,
+    InventoryModule,
+    SupplierModule
   ],
   providers: [
     {

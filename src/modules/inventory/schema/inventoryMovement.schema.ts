@@ -8,23 +8,25 @@ export class InventoryMovement {
   @Prop({ type: Types.ObjectId, ref: 'ProductVariant', required: true })
   id_variant: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'PurchaseOrder' }) // Opcional (solo si viene de compra)
+  @Prop({ type: Types.ObjectId, ref: 'PurchaseOrder' }) 
   id_purchase_order: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Worker', required: true })
   id_worker: Types.ObjectId;
 
-  @Prop({ enum: ['ENTRADA', 'SALIDA', 'AJUSTE'], required: true })
+  // Usamos el Enum para mayor seguridad
+  @Prop({ type: String, enum: ['ENTRADA', 'SALIDA', 'AJUSTE'], required: true })
   type: string;
 
   @Prop({ required: true })
   quantity: number;
 
+  // Aclaramos que es el stock físico previo y resultante
   @Prop({ required: true })
   previous_stock: number;
 
   @Prop({ required: true })
-  new_stock: number;
+  new_stock: number; 
 
   @Prop()
   reason: string;

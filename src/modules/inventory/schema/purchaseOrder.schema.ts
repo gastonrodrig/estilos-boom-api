@@ -47,6 +47,12 @@ export class PurchaseOrder {
 
   @Prop()
   delivery_date_actual: Date;
+
+  @Prop()
+  quality_rating: number; // 1 a 5, opcional para evaluar la calidad de la mercadería recibida
+
+  @Prop()
+  shipping_cost: number; // Costo de envío asociado a esta orden, opcional
 }
 
 export const PurchaseOrderSchema = SchemaFactory.createForClass(PurchaseOrder);
