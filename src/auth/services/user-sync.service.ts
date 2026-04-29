@@ -43,60 +43,68 @@ export class UserSyncService {
       const photo = userRecord.photoURL || '';
 
       // Buscar usuario por email
-      let user = await this.userModel
-        .findOne({ email })
-        // .session(session);
+      let user = await this.userModel.findOne({ email });
 
-      // CASO 1: Existe usuario → asegurar auth_id
+      // CASO 1: Existe usuario → asegurar auth_id y registro de cliente
       if (user) {
+        let needsUpdate = false;
+        const updateData: any = {};
+
         if (!user.auth_id) {
+          updateData.auth_id = uid;
+          needsUpdate = true;
+        }
+
+        if (needsUpdate) {
           user = await this.userModel.findByIdAndUpdate(
             user._id,
-            { $set: { auth_id: uid } },
-            // { new: true, session },
+            { $set: updateData },
+            { new: true },
           );
+        }
+
+        // 🛡️ ASEGURAR QUE TENGA CLIENTE (Reparación de datos)
+        const existingClient = await this.clientModel.findOne({ id_user: user._id });
+        if (!existingClient) {
+          await this.clientModel.create({
+            id_user: user._id,
+            profile_picture: photo,
+            needs_password_change: false,
+            created_by_admin: false,
+            is_extra_data_completed: false,
+          });
         }
       } else {
         // CASO 2: No existe → crear User + Client
         try {
-          const createdUsers = await this.userModel.create(
-            [
-              {
-                auth_id: uid,
-                email,
-                role: Roles.CLIENT,
-                status: Estado.ACTIVO,
-              },
-            ],
-            // { session },
-          );
+          const createdUsers = await this.userModel.create([
+            {
+              auth_id: uid,
+              email,
+              role: Roles.CLIENT,
+              status: Estado.ACTIVO,
+            },
+          ]);
 
           const newUser = createdUsers[0];
 
-          await this.clientModel.create(
-            [
-              {
-                id_user: newUser._id,
-                profile_picture: photo,
-                needs_password_change: false,
-                created_by_admin: false,
-                is_extra_data_completed: false,
-              },
-            ],
-            // { session },
-          );
+          await this.clientModel.create({
+            id_user: newUser._id,
+            profile_picture: photo,
+            needs_password_change: false,
+            created_by_admin: false,
+            is_extra_data_completed: false,
+          });
 
           user = newUser;
         } catch (error: any) {
           if (error?.code === 11000) {
-            user = await this.userModel.findOne({ email })
-            // .session(session);
-
+            user = await this.userModel.findOne({ email });
             if (user && !user.auth_id) {
               user = await this.userModel.findByIdAndUpdate(
                 user._id,
                 { $set: { auth_id: uid } },
-                // { new: true, session },
+                { new: true },
               );
             }
           } else {

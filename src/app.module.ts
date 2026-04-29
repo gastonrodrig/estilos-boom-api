@@ -11,12 +11,15 @@ import { MailModule } from './modules/mail/mail.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { FirebaseAuthGuard } from './auth/guards/firebase-auth.guard';
 import { CartModule } from './modules/cart/cart.module';
+import { ProductionModule } from './modules/production/production.module';
+import { ScheduleModule } from '@nestjs/schedule';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -29,6 +32,10 @@ import { SupplierModule } from './modules/supplier/supplier.module';
       useFactory: (configService: ConfigService) => ({
         connection: {
           url: configService.get<string>('REDIS_URL'),
+          maxRetriesPerRequest: null,
+          tls: {
+            rejectUnauthorized: false
+          }
         },
       }),
       inject: [ConfigService],
@@ -45,6 +52,7 @@ import { SupplierModule } from './modules/supplier/supplier.module';
     UserModule,
     FirebaseModule,
     CartModule,
+    ProductionModule,
     InventoryModule,
     SupplierModule
   ],
