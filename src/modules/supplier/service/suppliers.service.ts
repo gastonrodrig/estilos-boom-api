@@ -1,13 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Supplier,SupplierDocument } from '../schema/supplier.schema';
+import { Supplier, SupplierDocument } from '../schema/supplier.schema';
+import { PurchaseOrder, PurchaseOrderDocument } from 'src/modules/inventory/schema';
 import { CreateSupplierDto, UpdateSupplierDto } from '../dto';
 
 @Injectable()
 export class SuppliersService {
   constructor(
-    @InjectModel(Supplier.name) private supplierModel: Model<SupplierDocument>
+    @InjectModel(Supplier.name) private supplierModel: Model<SupplierDocument>,
+    @InjectModel(PurchaseOrder.name) private purchaseOrderModel: Model<PurchaseOrderDocument>,
   ) {}
 
   async create(createSupplierDto: CreateSupplierDto): Promise<Supplier> {
@@ -21,10 +23,28 @@ export class SuppliersService {
     return createdSupplier.save();
   }
 
-  async findAll(): Promise<Supplier[]> {
-    // Los devolvemos activos y ordenados por el mejor ranking
+  async findAll(filters?: { search?: string; status?: string | boolean }): Promise<Supplier[]> {
+    const query: any = {};
+
+    if (filters?.status !== undefined) {
+      query.status = filters.status === 'false' || filters.status === false ? false : true;
+    } else {
+      query.status = true;
+    }
+
+    if (filters?.search) {
+      const regex = new RegExp(filters.search, 'i');
+      query.$or = [
+        { name_company: regex },
+        { ruc: regex },
+        { contact_person: regex },
+        { email: regex },
+        { phone: regex },
+      ];
+    }
+
     return this.supplierModel
-      .find({ status: true })
+      .find(query)
       .sort({ rating: -1, on_time_delivery_rate: -1 })
       .exec();
   }
@@ -37,10 +57,26 @@ export class SuppliersService {
       .exec();
   }
 
-  async findOne(id: string): Promise<Supplier> {
+  async findOne(id: string): Promise<SupplierDocument> {
     const supplier = await this.supplierModel.findById(id).exec();
     if (!supplier) throw new NotFoundException('Proveedor no encontrado');
     return supplier;
+  }
+
+  async getFicha(id: string): Promise<{ supplier: SupplierDocument; orders: PurchaseOrder[]; incidences: any[] }> {
+    const supplier = await this.findOne(id);
+
+    const orders = await this.purchaseOrderModel
+      .find({ id_supplier: supplier._id })
+      .populate('id_worker')
+      .populate('items.id_variant')
+      .exec();
+
+    return {
+      supplier,
+      orders,
+      incidences: [], // Incidencias pendientes de implementar si hay un modelo específico en el futuro
+    };
   }
 
   async update(id: string, updateSupplierDto: UpdateSupplierDto): Promise<Supplier> {

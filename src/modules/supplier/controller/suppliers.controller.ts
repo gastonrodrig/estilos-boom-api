@@ -20,9 +20,9 @@ export class SuppliersController {
   @Get()
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Listar proveedores (ordenados por ranking)' })
-  findAll() {
-    return this.suppliersService.findAll();
+  @ApiOperation({ summary: 'Listar proveedores activos o por filtros de búsqueda' })
+  findAll(@Query('search') search?: string, @Query('status') status?: string) {
+    return this.suppliersService.findAll({ search, status });
   }
 
   @Get('ranking')
@@ -31,6 +31,14 @@ export class SuppliersController {
   @ApiOperation({ summary: 'Obtener top proveedores sugeridos por el algoritmo' })
   getTopRanking(@Query('limit') limit: number) {
     return this.suppliersService.getRankingSugerido(limit || 5);
+  }
+
+  @Get(':id/ficha')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Obtener ficha detallada del proveedor con historial de órdenes' })
+  getFicha(@Param('id') id: string) {
+    return this.suppliersService.getFicha(id);
   }
 
   @Get(':id')
