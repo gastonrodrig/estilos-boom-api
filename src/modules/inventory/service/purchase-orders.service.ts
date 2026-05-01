@@ -60,6 +60,7 @@ export class PurchaseOrdersService {
         // 4. ¡AHORA SÍ! Disparamos el ranking después del commit
         // Ahora que la OC ya es 'RECEIVED' en la BD, el RankingService la encontrará.
         if (status === OrderStatus.RECEIVED) {
+      // Usamos .toString() para asegurar que enviamos el string del ID de MongoDB
           await this.rankingService.updateSupplierRanking(order.id_supplier.toString());
         }
 

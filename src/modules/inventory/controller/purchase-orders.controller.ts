@@ -1,13 +1,14 @@
-import { Controller, Post, Get, Body, HttpCode, HttpStatus, Patch, Param } from '@nestjs/common';
+import { Controller, Post, Get, Body, HttpCode, HttpStatus, Patch, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PurchaseOrdersService } from '../service';
 import { CreatePurchaseOrderDto, UpdateOrderStatusDto } from '../dto';
 import { Public } from 'src/auth/decorators';
+import { RankingService } from '../service/ranking.service';
 
 @ApiTags('Purchase Orders')
 @Controller('purchase-orders')
 export class PurchaseOrdersController {
-  constructor(private readonly poService: PurchaseOrdersService) {}
+  constructor(private readonly poService: PurchaseOrdersService, private readonly rankingService: RankingService) {}
 
   @Post()
   @Public()
@@ -42,5 +43,15 @@ export class PurchaseOrdersController {
     @Body() dto: UpdateOrderStatusDto
   ) {
     return this.poService.updateStatus(id, dto);
+  }
+
+  // En purchase-orders.controller.ts
+  @Get('simulate-ranking')
+  async simulateRanking(
+    @Query('supplierId') supplierId: string,
+    @Query('variantId') variantId: string,
+    @Query('price') price: number, // Este es el currentQuotePrice
+  ) {
+    return this.rankingService.calculateGlobalRanking(supplierId, variantId, price);
   }
 }
