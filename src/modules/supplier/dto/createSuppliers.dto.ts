@@ -1,5 +1,5 @@
 // create-supplier.dto.ts
-import { IsString, IsEmail, IsNotEmpty, IsOptional, IsPhoneNumber } from 'class-validator';
+import { IsString, IsEmail, IsNotEmpty, IsOptional, Matches, IsBoolean } from 'class-validator';
 
 export class CreateSupplierDto {
   @IsString()
@@ -18,12 +18,16 @@ export class CreateSupplierDto {
   @IsOptional()
   email?: string;
 
-  @IsPhoneNumber('PE') // 'PE' para validar formato de Perú, por ejemplo
+  @Matches(/^[+]?[0-9\s\-()]{6,}$/, { message: 'Teléfono inválido' })
   @IsOptional()
   phone?: string;
 
   @IsString()
   @IsOptional()
   address?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  status?: boolean;
 }
 
