@@ -2,9 +2,9 @@
 
 export enum OrderStatus {
   PENDING = 'PENDIENTE',
-  CONFIRMED = 'CONFIRMADO',
-  RECEIVED = 'RECIBIDO',
-  CANCELLED = 'CANCELADO',
+  CONFIRMED = 'EN_REVISION',
+  RECEIVED = 'COMPLETADA',
+  CANCELLED = 'CANCELADA',
 }
 
 export enum MovementType {

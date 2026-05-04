@@ -145,14 +145,89 @@ export class PurchaseOrdersService {
   };
 }
 // 2. Prolongar Fecha (Acuerdo con proveedor)
-async extendDeliveryDate(id: string, newDate: Date, reason: string) {
-  return await this.poModel.findByIdAndUpdate(
-    id,
+
+async extendDeliveryDate(purchaseOrderId: string, newDate: string, reason: string) {
+  // 1. Buscamos la orden primero para obtener las notas actuales
+  const order = await this.poModel.findById(purchaseOrderId);
+  if (!order) throw new NotFoundException('Orden no encontrada');
+
+  // 2. Concatenamos la nueva nota al string existente
+  const extensionNote = `\n[EXTENSIÓN ${new Date().toLocaleDateString()}]: ${reason}`;
+  const updatedNotes = order.notes ? order.notes + extensionNote : extensionNote;
+
+  // 3. Actualizamos usando un $set normal (que es lo que hace Mongoose por defecto)
+  await this.poModel.findByIdAndUpdate(
+    purchaseOrderId,
     { 
-      delivery_date_estimated: newDate,
-      $push: { notes: `\n[EXTENSIÓN ${new Date().toLocaleDateString()}]: ${reason}` } 
+      delivery_date_estimated: new Date(newDate),
+      notes: updatedNotes // ✅ Ahora enviamos el string completo
     },
-    { new: true }
+    { returnDocument: 'after' }
   );
+
+  // 4. Buscamos la Pre-Orden para el dispatch de Redux
+  const updatedPreOrder = await this.preOrderModel.findOne({ id_purchase_order: purchaseOrderId })
+    .populate('id_purchase_order')
+    .populate('id_worker')
+    .populate('quotes.id_supplier');
+
+  return {
+    prePurchaseOrder: updatedPreOrder
+  };
+}
+
+async approveAndInventory(
+  purchaseOrderId: string, 
+  qualityRating: number, 
+  workerId: string
+): Promise<any> {
+  const session = await this.connection.startSession();
+  session.startTransaction();
+
+  try {
+    // 1. Buscamos la Orden de Compra (OC)
+    const order = await this.poModel.findById(purchaseOrderId);
+    if (!order) throw new NotFoundException('Orden de Compra no encontrada');
+    if (order.status === 'COMPLETADA') throw new BadRequestException('Esta orden ya fue ingresada al inventario.');
+
+    // 2. PROCESAR STOCK Y KARDEX
+    // Reutilizamos tu función privada handleStockReceipt
+    await this.handleStockReceipt(order, workerId, session);
+
+    // 3. ACTUALIZAR ESTADO DE LA OC
+    order.status = 'COMPLETADA'; // 👈 Sincronizado con tu esquema
+    order.quality_rating = qualityRating;
+    order.delivery_date_actual = new Date();
+    const savedOrder = await order.save({ session });
+
+    // 4. ACTUALIZAR ESTADO DE LA PRE-ORDEN (OPP)
+    // Buscamos la OPP que tiene vinculada esta OC
+    const updatedPreOrder = await this.preOrderModel.findOneAndUpdate(
+      { id_purchase_order: purchaseOrderId },
+      { status: 'COMPLETADA' },
+      { session, new: true }
+    )
+    .populate('id_purchase_order')
+    .populate('id_worker')
+    .populate('quotes.id_supplier');
+
+    // 5. FINALIZAR TRANSACCIÓN
+    await session.commitTransaction();
+    session.endSession();
+
+    // 6. ACTUALIZAR RANKING (Fuera de la transacción para no bloquear la DB)
+    // El RankingService usará la 'quality_rating' y fechas que acabamos de guardar
+    await this.rankingService.updateSupplierRanking(order.id_supplier.toString());
+
+    return {
+      message: 'Mercadería integrada con éxito y ranking actualizado.',
+      prePurchaseOrder: updatedPreOrder
+    };
+
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
 }
 }

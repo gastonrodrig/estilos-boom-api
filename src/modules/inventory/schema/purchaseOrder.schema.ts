@@ -34,7 +34,7 @@ export class PurchaseOrder {
   total_amount: number;
 
   @Prop({  
-    enum: ['PENDIENTE', 'CONFIRMADO', 'RECIBIDO', 'CANCELADO'], 
+    enum: ['PENDIENTE', 'EN_REVISION', 'COMPLETADA', 'CANCELADA'], 
     default: 'PENDIENTE' 
   })
   status: string;

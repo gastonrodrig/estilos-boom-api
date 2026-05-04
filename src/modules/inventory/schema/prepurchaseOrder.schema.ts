@@ -49,7 +49,7 @@ export class PrePurchaseOrder {
   quotes: SupplierQuote[];
 
   @Prop({
-    enum: ['SOLICITANDO', 'COMPARANDO', 'CONVERTIDA', 'CANCELADA'],
+    enum: ['SOLICITANDO', 'COMPARANDO', 'CONVERTIDA', 'EN_REVISION', 'COMPLETADA'],
     default: 'SOLICITANDO'
   })
   status: string;

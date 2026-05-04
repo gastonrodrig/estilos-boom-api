@@ -67,4 +67,25 @@ export class PurchaseOrdersController {
   ) {
     return this.poService.startQualityCheck(purchaseOrderId, preOrderId);
   }
+@Patch(':id/approve')
+@Public()
+async approve(
+  @Param('id') id: string,
+  @Body() body: { quality_rating: number; workerId: string }
+) {
+  return this.poService.approveAndInventory(
+    id, 
+    body.quality_rating, 
+    body.workerId
+  );
+}
+@Patch(':id/extend')
+@Public() // O el decorador de seguridad que estés usando en URP
+async extendDeliveryDate(
+  @Param('id') id: string,
+  @Body() body: { newDate: string; reason: string },
+) {
+  // Llamamos al servicio pasando el ID de la OC, la nueva fecha y el motivo
+  return this.poService.extendDeliveryDate(id, body.newDate, body.reason);
+}
 }
