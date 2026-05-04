@@ -9,7 +9,7 @@ import { OrderStatus } from '../enum/supply.constants';
 
 export class CreatePurchaseOrderDto {
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   order_number: string;
 
   @IsMongoId()
@@ -36,4 +36,8 @@ export class CreatePurchaseOrderDto {
   @IsDateString()
   @IsOptional()
   delivery_date_estimated?: string;
+
+  @IsMongoId()
+  @IsNotEmpty()
+  id_pre_purchase_order
 }

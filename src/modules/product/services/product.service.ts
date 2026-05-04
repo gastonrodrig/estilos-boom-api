@@ -14,6 +14,7 @@ import {
 import { CategoryDocument, Category } from '../schemas';
 import { StorageService } from 'src/modules/firebase/services';
 import { CreateProductDto,UpdateCategoryDto,UpdateProductDto } from '../dto';
+import { CreateVariantDto } from '../dto/create-variant.dto';
 
 @Injectable()
 export class ProductService {
@@ -147,6 +148,30 @@ export class ProductService {
 
     return { items: itemsWithVariants, total };
   }
+
+  async createVariant(dto: CreateVariantDto) {
+  try {
+    // Verificamos si el producto base existe
+    const product = await this.productModel.findById(dto.id_product);
+    if (!product) throw new NotFoundException('El producto base no existe');
+
+    const newVariant = new this.variantModel({
+      id_product: new Types.ObjectId(dto.id_product),
+      size: dto.size,
+      color: dto.color,
+      physical_stock: dto.physical_stock ?? 0,
+      reserved_stock: 0,
+      sku_variant: dto.sku_variant,
+    });
+
+    return await newVariant.save();
+  } catch (error) {
+    if (error instanceof NotFoundException) throw error;
+    throw new InternalServerErrorException(
+      `Error al crear la variante: ${error.message}`,
+    );
+  }
+}
 
 async findOne(id: string) {
   const product = await this.productModel.findById(id).populate('id_category');

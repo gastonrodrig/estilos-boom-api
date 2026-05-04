@@ -11,6 +11,9 @@ import { PurchaseOrdersController,InventoryController } from './controller';
 import { SuppliersController } from '../supplier/controller/suppliers.controller'; // Si quieres exponer endpoints de proveedores aquí
 import { SuppliersService } from '../supplier/service/suppliers.service';
 import { StorageService } from '../firebase/services';
+import { PrePurchaseOrder, PrePurchaseOrderSchema } from './schema/prepurchaseOrder.schema';
+import { PrePurchaseOrdersService } from './service/prepurchase-order.service';
+import { PrePurchaseOrdersController } from './controller/prepurchase.controller';
 
 @Module({
   imports: [
@@ -20,21 +23,24 @@ import { StorageService } from '../firebase/services';
       // DEBES AGREGAR ESTOS DOS AQUÍ:
       { name: ProductVariant.name, schema: ProductVariantSchema },
       { name: Supplier.name, schema: SupplierSchema },
+      { name: PrePurchaseOrder.name, schema: PrePurchaseOrderSchema }
     ]),
   ],
   controllers: [
     PurchaseOrdersController, 
     InventoryController, 
-    SuppliersController
+    SuppliersController,
+    PrePurchaseOrdersController // Controlador para manejar precompras
   ],
   providers: [
     PurchaseOrdersService, 
     RankingService, 
     InventoryService, 
     SuppliersService, // Agrégalo si no tienes un SuppliersModule aparte
-    StorageService
+    StorageService,
+    PrePurchaseOrdersService // Servicio para manejar la lógica de precompras
   ],
   // Exporta los servicios si otros módulos (como Ventas) necesitan el stock
-  exports: [InventoryService, PurchaseOrdersService] 
+  exports: [InventoryService, PurchaseOrdersService, RankingService, PrePurchaseOrdersService] 
 })
 export class InventoryModule {}

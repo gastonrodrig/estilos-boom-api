@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PurchaseOrder, PurchaseOrderDocument } from '../schema/purchaseOrder.schema';
 import { Supplier, SupplierDocument } from 'src/modules/supplier/schema/supplier.schema';
 import { ProductVariant, ProductVariantDocument } from 'src/modules/product/schemas';
 import { OrderStatus } from '../enum/supply.constants';
+import { PrePurchaseOrder, PrePurchaseOrderDocument, SupplierQuote } from '../schema/prepurchaseOrder.schema';
 
 @Injectable()
 export class RankingService {
@@ -12,6 +13,7 @@ export class RankingService {
     @InjectModel(PurchaseOrder.name) private poModel: Model<PurchaseOrderDocument>,
     @InjectModel(Supplier.name) private supplierModel: Model<SupplierDocument>,
     @InjectModel(ProductVariant.name) private variantModel: Model<ProductVariantDocument>,
+    @InjectModel(PrePurchaseOrder.name) private preOrderModel: Model<PrePurchaseOrderDocument>
   ) {}
 
   /**
@@ -149,5 +151,54 @@ export class RankingService {
       .sort({ final_rating: -1 })
       .limit(limit)
       .exec();
+  }
+
+  async convertToPurchaseOrder(preOrderId: string, winnerSupplierId: string): Promise<PurchaseOrder> {
+  // 1. Buscar la Pre-Orden
+  const preOrder = await this.preOrderModel.findById(preOrderId).exec();
+  if (!preOrder) throw new NotFoundException('Pre-Orden no encontrada');
+
+  // 2. Encontrar la cotización ganadora dentro de la Pre-Orden
+  const winnerQuote = preOrder.quotes.find(
+    q => q.id_supplier.toString() === winnerSupplierId
+  );
+  if (!winnerQuote) throw new BadRequestException('El proveedor seleccionado no tiene una cotización en esta orden');
+
+  // 3. Crear la Orden de Compra final (Tu modelo original)
+  const newPurchaseOrder = new this.poModel({
+    order_number: `OC-${Date.now().toString().slice(-6)}`,
+    id_supplier: winnerSupplierId,
+    id_worker: preOrder.id_worker,
+    items: winnerQuote.items, // Usamos los precios que el ganador ofreció
+    total_amount: winnerQuote.total_amount,
+    status: 'PENDIENTE',
+    notes: `Generada desde la Pre-Orden ${preOrder.pre_order_number}`
+  });
+
+  // 4. Actualizar estado de la Pre-Orden y de la cotización
+  preOrder.status = 'CONVERTIDA';
+  winnerQuote.quote_status = 'SELECCIONADO';
+  await preOrder.save();
+
+  return newPurchaseOrder.save();
+}
+async rankQuotes(variantId: string, quotes: SupplierQuote[]): Promise<SupplierQuote[]> {
+    const rankedQuotes = await Promise.all(
+      quotes.map(async (quote) => {
+        const score = await this.calculateGlobalRanking(
+          quote.id_supplier.toString(),
+          variantId,
+          quote.total_amount / quote.items[0].quantity // Precio unitario promedio
+        );
+        
+        return {
+          ...quote,
+          ranking_score: score
+        };
+      })
+    );
+
+    // Ordenar de mejor score (1.0) a peor (0.0)
+    return rankedQuotes.sort((a, b) => b.ranking_score - a.ranking_score);
   }
 }

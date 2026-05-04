@@ -8,6 +8,8 @@ import { CreatePurchaseOrderDto, PurchaseOrderItemDto,UpdateOrderStatusDto } fro
 import { OrderStatus, MovementType } from '../enum/supply.constants';
 import { SuppliersService } from 'src/modules/supplier/service/suppliers.service';
 import { RankingService } from './ranking.service';
+import { PrePurchaseOrder, PrePurchaseOrderDocument } from '../schema/prepurchaseOrder.schema';
+import { PrePurchaseOrdersService } from './prepurchase-order.service';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -18,6 +20,7 @@ export class PurchaseOrdersService {
     @InjectConnection() private readonly connection: Connection, // Inyecta la conexión para transacciones
     private readonly supplierService: SuppliersService, // Necesitarás esto para el ranking
     private readonly rankingService: RankingService, // Necesitarás esto para el ranking
+    @InjectModel(PrePurchaseOrder.name) private preOrderModel: Model<PrePurchaseOrderDocument>, // Para vincular con Pre-Orden
   ) {}
 
   // 1. Crear una nueva Orden de Compra (Estado Inicial: PENDIENTE)
@@ -112,4 +115,44 @@ export class PurchaseOrdersService {
   async findOne(id: string) {
     return this.poModel.findById(id).populate('id_supplier').populate('items.id_variant').exec();
   }
+
+  async startQualityCheck(purchaseOrderId: string, preOrderId: string) {
+  
+  // 1. Actualizamos la Orden de Compra (El stock físico) a EN_REVISION
+  await this.poModel.findByIdAndUpdate(
+    purchaseOrderId, 
+    { status: 'EN_REVISION' }, 
+    { returnDocument: 'after' } 
+  );
+
+  // 2. 🔥 LA CLAVE: Actualizamos también la Pre-Orden (El seguimiento visual) a EN_REVISION
+  const updatedPreOrder = await this.preOrderModel.findByIdAndUpdate(
+    preOrderId,
+    { status: 'EN_REVISION' }, // 👈 Esto hará que el Stepper en React avance
+    { new: true } // Para que nos devuelva el documento actualizado
+  )
+  .populate('id_purchase_order')
+  .populate('id_worker')
+  .populate('quotes.id_supplier');
+
+  if (!updatedPreOrder) {
+     throw new NotFoundException('Pre-Orden no encontrada en la base de datos.');
+  }
+
+  // 3. Devolvemos el objeto listo para Redux
+  return {
+    prePurchaseOrder: updatedPreOrder
+  };
+}
+// 2. Prolongar Fecha (Acuerdo con proveedor)
+async extendDeliveryDate(id: string, newDate: Date, reason: string) {
+  return await this.poModel.findByIdAndUpdate(
+    id,
+    { 
+      delivery_date_estimated: newDate,
+      $push: { notes: `\n[EXTENSIÓN ${new Date().toLocaleDateString()}]: ${reason}` } 
+    },
+    { new: true }
+  );
+}
 }

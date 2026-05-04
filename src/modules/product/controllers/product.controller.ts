@@ -9,6 +9,7 @@ import { CreateProductDto } from '../dto';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { Public } from 'src/auth/decorators';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { CreateVariantDto } from '../dto/create-variant.dto';
 
 @ApiTags('Products')
 @ApiBearerAuth('firebase-auth')
@@ -186,4 +187,11 @@ export class ProductController {
   remove(@Param('id') id: string) {
     return this.productService.deactivate(id);
   }
+
+  @Post('variants')
+    @Public() // Según tu configuración de seguridad
+    @ApiOperation({ summary: 'Crear una variante de producto de forma independiente' })
+    async createVariant(@Body() dto: CreateVariantDto) {
+      return this.productService.createVariant(dto);
+    }
 }

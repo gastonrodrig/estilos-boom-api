@@ -4,11 +4,14 @@ import { PurchaseOrdersService } from '../service';
 import { CreatePurchaseOrderDto, UpdateOrderStatusDto } from '../dto';
 import { Public } from 'src/auth/decorators';
 import { RankingService } from '../service/ranking.service';
+import { PrePurchaseOrdersService } from '../service/prepurchase-order.service';
 
 @ApiTags('Purchase Orders')
 @Controller('purchase-orders')
 export class PurchaseOrdersController {
-  constructor(private readonly poService: PurchaseOrdersService, private readonly rankingService: RankingService) {}
+  constructor(private readonly poService: PurchaseOrdersService, private readonly rankingService: RankingService,
+    private readonly preOrderService: PrePurchaseOrdersService
+  ) {}
 
   @Post()
   @Public()
@@ -47,11 +50,21 @@ export class PurchaseOrdersController {
 
   // En purchase-orders.controller.ts
   @Get('simulate-ranking')
+  @Public()
   async simulateRanking(
     @Query('supplierId') supplierId: string,
     @Query('variantId') variantId: string,
     @Query('price') price: number, // Este es el currentQuotePrice
   ) {
     return this.rankingService.calculateGlobalRanking(supplierId, variantId, price);
+  }
+
+  @Patch(':id/start-quality-check')
+  @Public()
+  async startQualityCheck(
+    @Param('id') purchaseOrderId: string,
+    @Body('preOrderId') preOrderId: string // 👈 Recibimos el ID de la OPP en el body
+  ) {
+    return this.poService.startQualityCheck(purchaseOrderId, preOrderId);
   }
 }
