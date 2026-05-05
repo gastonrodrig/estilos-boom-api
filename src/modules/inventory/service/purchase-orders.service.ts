@@ -76,36 +76,42 @@ export class PurchaseOrdersService {
     }
 
   // 3. Función Privada: Procesar la entrada de mercadería al stock y Kardex
-  private async handleStockReceipt(order: PurchaseOrderDocument, workerId: string, session: ClientSession) {
-    for (const item of order.items) {
-      const variant = await this.variantModel.findById(item.id_variant).session(session);
-      if (!variant) continue;
+ private async handleStockReceipt(order: PurchaseOrderDocument, workerId: string, session: ClientSession) {
+  for (const item of order.items) {
+    const variantId = new Types.ObjectId(item.id_variant as any);
 
-      const previousStock = Number(variant.physical_stock ?? 0);
-      const newStock = previousStock + item.quantity;
+    // ✅ Ahora Mongoose no borrará el campo 'stock' antes de enviar la orden a Mongo
+    const updateResult = await this.variantModel.findByIdAndUpdate(
+      variantId,
+      { 
+        $inc: { 
+          physical_stock: Number(item.quantity), 
+          stock: Number(item.quantity) 
+        } 
+      },
+      { session, new: true } 
+    );
 
-      // Actualizar Variant con la sesión
-      await this.variantModel.findByIdAndUpdate(
-        item.id_variant, 
-        { $inc: { physical_stock: item.quantity } },
-        { session }
-      );
-
-      // Registrar Movimiento con la sesión
-      const movement = new this.movementModel({
-        id_variant: item.id_variant,
-        id_purchase_order: order._id,
-        id_worker: workerId || order.id_worker,
-        type: 'ENTRADA',
-        quantity: item.quantity,
-        previous_stock: previousStock,
-        new_stock: newStock,
-        reason: `Entrada por OC: ${order.order_number}`,
-      });
-
-      await movement.save({ session });
+    if (!updateResult) {
+      console.error(`Error: Variante ${variantId} no encontrada`);
+      continue;
     }
+
+    // Registrar en Kardex
+    const movement = new this.movementModel({
+      id_variant: variantId,
+      id_purchase_order: order._id,
+      id_worker: workerId || order.id_worker,
+      type: 'ENTRADA',
+      quantity: item.quantity,
+      previous_stock: Number(updateResult.physical_stock) - item.quantity,
+      new_stock: Number(updateResult.physical_stock),
+      reason: `Ingreso de mercadería - OC: ${order.order_number}`,
+    });
+
+    await movement.save({ session });
   }
+}
 
   // 4. Listar órdenes (con filtros opcionales)
   async findAll() {
@@ -203,13 +209,18 @@ async approveAndInventory(
     // 4. ACTUALIZAR ESTADO DE LA PRE-ORDEN (OPP)
     // Buscamos la OPP que tiene vinculada esta OC
     const updatedPreOrder = await this.preOrderModel.findOneAndUpdate(
-      { id_purchase_order: purchaseOrderId },
+      { id_purchase_order: new Types.ObjectId(purchaseOrderId) }, // 🔥 Casteo explícito
       { status: 'COMPLETADA' },
       { session, new: true }
     )
     .populate('id_purchase_order')
     .populate('id_worker')
     .populate('quotes.id_supplier');
+
+    if (!updatedPreOrder) {
+        // Si no la encuentra, lanzamos error para que la transacción aborte y no haya inconsistencia
+        throw new BadRequestException('No se pudo encontrar la Pre-Orden vinculada para cerrar el flujo.');
+    }
 
     // 5. FINALIZAR TRANSACCIÓN
     await session.commitTransaction();

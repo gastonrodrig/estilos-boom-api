@@ -51,21 +51,18 @@ export class ProductService {
     }
 
       return products.map((product) => {
-      const plain = product.toObject();
-      const pId = product._id.toString();
-      const variants = byProductId.get(pId) ?? [];
+    const plain = product.toObject();
+    const pId = product._id.toString();
+    const variants = byProductId.get(pId) ?? [];
 
-      // Agregamos el cálculo manualmente para el objeto plano
-      const variantsWithAvailable = variants.map(v => ({
-        ...v,
-        available_stock: v.physical_stock - v.reserved_stock // Cálculo al vuelo
-      }));
+    const variantsWithAvailable = variants.map(v => ({
+      ...v,
+      // Usamos el campo real de la DB, pero mantenemos el nombre que espera el front
+      available_stock: v.stock 
+    }));
 
-      return {
-        ...plain,
-        variants: variantsWithAvailable,
-      };
-    });
+    return { ...plain, variants: variantsWithAvailable };
+  });
   }
 
   async findAll(query: any = {}) {
@@ -162,6 +159,7 @@ export class ProductService {
       physical_stock: dto.physical_stock ?? 0,
       reserved_stock: 0,
       sku_variant: dto.sku_variant,
+      min_stock_alert: dto.min_stock_alert ?? 10,
     });
 
     return await newVariant.save();
@@ -169,6 +167,30 @@ export class ProductService {
     if (error instanceof NotFoundException) throw error;
     throw new InternalServerErrorException(
       `Error al crear la variante: ${error.message}`,
+    );
+  }
+}
+
+async updateMinStockAlert(idVariant: string, minStock: number) {
+  try {
+    const variant = await this.variantModel.findByIdAndUpdate(
+      idVariant,
+      { min_stock_alert: minStock },
+      { 
+        new: true,           // Retorna el documento actualizado
+        runValidators: true  // Valida que el número sea correcto según el esquema
+      },
+    );
+
+    if (!variant) {
+      throw new NotFoundException('No se encontró la variante especificada');
+    }
+
+    return variant;
+  } catch (error) {
+    if (error instanceof NotFoundException) throw error;
+    throw new InternalServerErrorException(
+      `Error al actualizar el umbral de alerta: ${error.message}`,
     );
   }
 }
@@ -233,9 +255,11 @@ async findOne(id: string) {
             id_product: savedProduct._id,
             size: String(v.size ?? ''),
             color: String(v.color ?? ''),
-            physical_stock: Number(v.stock ?? 0), // CAMBIADO: de stock a physical_stock
-            reserved_stock: 0, // Inicializamos siempre en 0
+            physical_stock: Number(v.stock ?? 0), // Lo que hay físicamente
+            stock: Number(v.stock ?? 0),          // Lo que está disponible para venta
+            reserved_stock: 0,
             sku_variant: String(v.sku_variant ?? ''),
+            min_stock_alert: Number(v.min_stock_alert ?? 10),
           })),
         );
       }
@@ -309,7 +333,9 @@ async findOne(id: string) {
                 id_product: new Types.ObjectId(id),
                 size: String(v.size ?? ''),
                 color: String(v.color ?? ''),
-                physical_stock: Number(v.stock ?? 0), // CAMBIADO
+                physical_stock: Number(v.stock ?? 0), // Lo que hay físicamente
+                stock: Number(v.stock ?? 0),          // Lo que está disponible para venta
+                reserved_stock: 0,
                 sku_variant: String(v.sku_variant ?? ''),
               })),
             );
@@ -333,21 +359,19 @@ async findOne(id: string) {
   }
 
   async updateVariantStock(idVariant: string, quantity: number) {
-    try {
-      // Usamos $inc para sumar al stock existente en lugar de sobrescribir
-      const variant = await this.variantModel.findByIdAndUpdate(
-        idVariant,
-        { $inc: { physical_stock: quantity } }, // Incrementa el stock físico
-        { new: true },
-      );
-      if (!variant) throw new NotFoundException('Variante no encontrada');
-      return variant;
-    } catch (error) {
-      throw new InternalServerErrorException(
-        `Error al actualizar stock: ${error.message}`,
-      );
-    }
+  try {
+    const variant = await this.variantModel.findByIdAndUpdate(
+      idVariant,
+      // Incrementamos ambos para mantener la sincronía
+      { $inc: { physical_stock: quantity, stock: quantity } }, 
+      { new: true },
+    );
+    if (!variant) throw new NotFoundException('Variante no encontrada');
+    return variant;
+  } catch (error) {
+    throw new InternalServerErrorException(`Error al actualizar stock: ${error.message}`);
   }
+}
 
   async deactivate(id: string) {
     try {

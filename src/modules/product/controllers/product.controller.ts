@@ -177,11 +177,11 @@ export class ProductController {
   @Patch(':id/stock/:stock')
   @ApiOperation({ summary: 'Update product stock' })
   updateStock(
-    @Param('idVariant') idVariant: string,
-    @Body('stock') stock: number,
-  ) {
-    return this.productService.updateVariantStock(idVariant, Number(stock));
-  }
+  @Param('idVariant') idVariant: string,
+  @Param('stock') stock: number, // Cambiado de @Body a @Param porque así está en tu ruta
+) {
+  return this.productService.updateVariantStock(idVariant, Number(stock));
+}
 
   @Delete(':id')
   remove(@Param('id') id: string) {
@@ -194,4 +194,28 @@ export class ProductController {
     async createVariant(@Body() dto: CreateVariantDto) {
       return this.productService.createVariant(dto);
     }
+
+    @ApiOperation({ summary: 'Actualizar el umbral de alerta de stock mínimo de una variante' })
+@ApiBody({
+  schema: {
+    type: 'object',
+    properties: {
+      min_stock_alert: { type: 'number', example: 15 }
+    },
+    required: ['min_stock_alert']
+  }
+})
+@Patch(':idVariant/min-stock')
+@Public() // Ajustar según tu política de seguridad
+async updateMinStock(
+  @Param('idVariant') idVariant: string,
+  @Body('min_stock_alert') minStock: number,
+) {
+  // Validamos que el valor sea numérico antes de enviarlo al servicio
+  if (isNaN(minStock)) {
+    throw new BadRequestException('El valor de min_stock_alert debe ser un número');
+  }
+
+  return this.productService.updateMinStockAlert(idVariant, Number(minStock));
+}
 }

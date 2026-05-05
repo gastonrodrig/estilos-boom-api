@@ -27,4 +27,12 @@ export class CreateVariantDto {
   @IsString()
   @IsNotEmpty()
   sku_variant: string;
+
+  @ApiProperty()
+  @IsNumber()
+  stock: number;
+
+  @ApiProperty({example: 10})
+  @IsNumber()
+  min_stock_alert: number;
 }
