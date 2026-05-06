@@ -8,7 +8,7 @@ export class ConvertPrePurchaseOrderDto {
   })
   @IsMongoId()
   @IsNotEmpty()
-  id_supplier: string;
+  id_agent: string;
 
   @IsDateString() // ✅ Esto asegura que la fecha sea un string válido de tipo ISO
   @IsNotEmpty()

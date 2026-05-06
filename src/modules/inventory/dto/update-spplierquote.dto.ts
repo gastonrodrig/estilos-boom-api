@@ -5,7 +5,7 @@ import { PurchaseOrderItemDto } from './purchaseOrderItem.dto';
 export class UpdateSupplierQuoteDto {
   @IsMongoId()
   @IsNotEmpty()
-  id_supplier: string;
+  id_agent: string;
 
   @IsArray()
   @ValidateNested({ each: true })

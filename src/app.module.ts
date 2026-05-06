@@ -11,10 +11,11 @@ import { MailModule } from './modules/mail/mail.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { FirebaseAuthGuard } from './auth/guards/firebase-auth.guard';
 import { CartModule } from './modules/cart/cart.module';
-import { ProductionModule } from './modules/production/production.module';
+
 import { ScheduleModule } from '@nestjs/schedule';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
+import { WorkshopModule } from './modules/workshop/workshop.module';
 
 @Module({
   imports: [
@@ -52,9 +53,10 @@ import { SupplierModule } from './modules/supplier/supplier.module';
     UserModule,
     FirebaseModule,
     CartModule,
-    ProductionModule,
+
     InventoryModule,
-    SupplierModule
+    SupplierModule,
+    WorkshopModule
   ],
   providers: [
     {

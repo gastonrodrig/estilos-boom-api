@@ -21,7 +21,10 @@ export class PurchaseOrder {
   @Prop({ required: true, unique: true })
   order_number: string; // OC-001, etc.
 
-  @Prop({ type: Types.ObjectId, ref: 'Supplier', required: true })
+  @Prop({ type: String, enum: ['Supplier', 'Workshop'], required: true, default: 'Supplier' })
+  onModel: string;
+
+  @Prop({ type: Types.ObjectId, refPath: 'onModel', required: true })
   id_supplier: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Worker', required: true })
