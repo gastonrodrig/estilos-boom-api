@@ -324,23 +324,56 @@ async findOne(id: string) {
             rawVariants = [];
           }
         }
+        const incomingVariantIds = rawVariants
+          .filter(v => v._id || v.id) // Algunos frameworks mandan _id o id
+          .map(v => String(v._id || v.id));
 
-        await this.variantModel.deleteMany({ id_product: new Types.ObjectId(id) });
+            await this.variantModel.deleteMany({
+          id_product: new Types.ObjectId(id),
+          _id: { $nin: incomingVariantIds.map(vid => new Types.ObjectId(vid)) }
+        });
 
-        if (rawVariants.length > 0) {
-            await this.variantModel.insertMany(
-              rawVariants.map((v: any) => ({
-                id_product: new Types.ObjectId(id),
-                size: String(v.size ?? ''),
-                color: String(v.color ?? ''),
-                physical_stock: Number(v.stock ?? 0), // Lo que hay físicamente
-                stock: Number(v.stock ?? 0),          // Lo que está disponible para venta
-                reserved_stock: 0,
-                sku_variant: String(v.sku_variant ?? ''),
-              })),
-            );
+        const bulkOps = rawVariants.map((v: any) => {
+    const variantId = v._id || v.id;
+
+    if (variantId) {
+      // OPERACIÓN: ACTUALIZAR EXISTENTE
+      return {
+        updateOne: {
+          filter: { _id: new Types.ObjectId(variantId) },
+          update: {
+            $set: {
+              size: String(v.size ?? ''),
+              color: String(v.color ?? ''),
+              physical_stock: Number(v.stock ?? 0),
+              stock: Number(v.stock ?? 0),
+              sku_variant: String(v.sku_variant ?? ''),
+            }
           }
-      }
+        }
+      };
+    }else {
+      // OPERACIÓN: CREAR NUEVA
+      return {
+        insertOne: {
+          document: {
+            id_product: new Types.ObjectId(id),
+            size: String(v.size ?? ''),
+            color: String(v.color ?? ''),
+            physical_stock: Number(v.stock ?? 0),
+            stock: Number(v.stock ?? 0),
+            reserved_stock: 0,
+            sku_variant: String(v.sku_variant ?? ''),
+            min_stock_alert: Number(v.min_stock_alert ?? 10),
+          }
+        }
+      };
+    }
+      });
+      if (bulkOps.length > 0) {
+    await this.variantModel.bulkWrite(bulkOps);
+  }
+    }
 
       const variants = await this.variantModel
         .find({ id_product: new Types.ObjectId(id) })
