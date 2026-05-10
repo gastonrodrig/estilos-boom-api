@@ -31,7 +31,7 @@ export class PrePurchaseOrdersController {
   ) {
     return this.preOrderService.updateSupplierQuote(
       id,
-      updateQuoteDto.id_supplier,
+      updateQuoteDto.id_agent,
       updateQuoteDto.items,
     );
   }
@@ -47,7 +47,7 @@ export class PrePurchaseOrdersController {
     @Body() convertDto: ConvertPrePurchaseOrderDto, // <-- Cambiado a DTO
   ) {
     // Accedemos a la propiedad desde el objeto convertDto
-    return this.preOrderService.selectWinnerAndConvert(id, convertDto.id_supplier,convertDto.delivery_date_estimated);
+    return this.preOrderService.selectWinnerAndConvert(id, convertDto.id_agent, convertDto.delivery_date_estimated);
   }
 
   /**
@@ -56,9 +56,8 @@ export class PrePurchaseOrdersController {
    */
   @Get()
   @Public()
-  async findAll() {
-    // Este método lo puedes agregar al service para ver qué órdenes están 'COMPARANDO'
-    return this.preOrderService.findAll(); 
+  async findAll(@Query('type') type?: string) {
+    return this.preOrderService.findAll(type); 
   }
 
   /**
@@ -71,5 +70,16 @@ export class PrePurchaseOrdersController {
     return this.preOrderService.findOne(id);
   }
 
-  
+  /**
+   * 6. Actualizar el estado de la pre-orden (Seguimiento de Producción)
+   * PATCH /pre-purchase-orders/:id/status
+   */
+  @Patch(':id/status')
+  @Public()
+  async updateStatus(
+    @Param('id') id: string,
+    @Body('status') status: string,
+  ) {
+    return this.preOrderService.updateStatus(id, status);
+  }
 }

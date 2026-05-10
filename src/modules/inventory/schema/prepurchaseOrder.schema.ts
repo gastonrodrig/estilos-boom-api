@@ -14,13 +14,16 @@ export class PurchaseOrderItem {
   unit_cost: number;
 }
 
-// 2. Ahora SupplierQuote puede encontrar a PurchaseOrderItem
+// 2. Ahora SupplierQuote puede encontrar a PurchaseOrderItem y ser dinámico
 @Schema({ _id: false })
 export class SupplierQuote {
-  @Prop({ type: Types.ObjectId, ref: 'Supplier', required: true })
-  id_supplier: Types.ObjectId;
+  @Prop({ type: String, enum: ['Supplier', 'Workshop'], required: true })
+  onModel: string; // Determina si es un Proveedor o un Taller
 
-  @Prop({ type: [PurchaseOrderItem] }) // Aquí ya no dará error
+  @Prop({ type: Types.ObjectId, refPath: 'quotes.onModel', required: true })
+  id_agent: Types.ObjectId; // El ID del agente (Proveedor o Taller)
+
+  @Prop({ type: [PurchaseOrderItem] })
   items: PurchaseOrderItem[];
 
   @Prop()
@@ -33,11 +36,14 @@ export class SupplierQuote {
   quote_status: string;
 }
 
-// 3. Esquema principal de la Pre-Orden
+// 3. Esquema principal de la Pre-Orden (Universal)
 @Schema({ timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }, collection: 'PrePurchaseOrder' })
 export class PrePurchaseOrder {
   @Prop({ required: true, unique: true })
   pre_order_number: string;
+
+  @Prop({ type: String, enum: ['ABASTECIMIENTO', 'PRODUCCION'], default: 'ABASTECIMIENTO' })
+  type: string;
 
   @Prop({ type: Types.ObjectId, ref: 'Worker', required: true })
   id_worker: Types.ObjectId;
@@ -53,6 +59,7 @@ export class PrePurchaseOrder {
     default: 'SOLICITANDO'
   })
   status: string;
+
   @Prop()
   notes?: string;
 

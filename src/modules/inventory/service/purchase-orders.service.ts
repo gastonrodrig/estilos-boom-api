@@ -63,8 +63,7 @@ export class PurchaseOrdersService {
         // 4. ¡AHORA SÍ! Disparamos el ranking después del commit
         // Ahora que la OC ya es 'RECEIVED' en la BD, el RankingService la encontrará.
         if (status === OrderStatus.RECEIVED) {
-      // Usamos .toString() para asegurar que enviamos el string del ID de MongoDB
-          await this.rankingService.updateSupplierRanking(order.id_supplier.toString());
+          await this.rankingService.updateRanking(order.id_supplier.toString(), order.onModel);
         }
 
         return savedOrder;
@@ -145,7 +144,7 @@ export class PurchaseOrdersService {
   )
   .populate('id_purchase_order')
   .populate('id_worker')
-  .populate('quotes.id_supplier');
+  .populate('quotes.id_agent');
 
   if (!updatedPreOrder) {
      throw new NotFoundException('Pre-Orden no encontrada en la base de datos.');
@@ -181,7 +180,7 @@ async extendDeliveryDate(purchaseOrderId: string, newDate: string, reason: strin
   const updatedPreOrder = await this.preOrderModel.findOne({ id_purchase_order: purchaseOrderId })
     .populate('id_purchase_order')
     .populate('id_worker')
-    .populate('quotes.id_supplier');
+    .populate('quotes.id_agent');
 
   return {
     prePurchaseOrder: updatedPreOrder
@@ -221,7 +220,7 @@ async approveAndInventory(
     )
     .populate('id_purchase_order')
     .populate('id_worker')
-    .populate('quotes.id_supplier');
+    .populate('quotes.id_agent');
 
     if (!updatedPreOrder) {
         // Si no la encuentra, lanzamos error para que la transacción aborte y no haya inconsistencia
@@ -232,9 +231,8 @@ async approveAndInventory(
     await session.commitTransaction();
     session.endSession();
 
-    // 6. ACTUALIZAR RANKING (Fuera de la transacción para no bloquear la DB)
-    // El RankingService usará la 'quality_rating' y fechas que acabamos de guardar
-    await this.rankingService.updateSupplierRanking(order.id_supplier.toString());
+    // 6. ACTUALIZAR RANKING
+    await this.rankingService.updateRanking(order.id_supplier.toString(), order.onModel);
 
     return {
       message: 'Mercadería integrada con éxito y ranking actualizado.',

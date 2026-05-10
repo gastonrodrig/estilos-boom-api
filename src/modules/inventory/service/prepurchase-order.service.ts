@@ -17,10 +17,11 @@ export class PrePurchaseOrdersService {
    * 1. CREACIÓN: Inicia la solicitud de cotización
    */
   async create(createDto: any): Promise<PrePurchaseOrder> {
-    const { base_items, supplier_ids, id_worker } = createDto;
+    const { base_items, supplier_ids, id_worker, type = 'ABASTECIMIENTO', onModel = 'Supplier' } = createDto;
 
     const initialQuotes: SupplierQuote[] = supplier_ids.map(id => ({
-      id_supplier: id,
+      id_agent: id,
+      onModel: onModel, // Puede venir 'Workshop' desde el front si es producción
       items: base_items.map(item => ({ ...item, unit_cost: 0 })),
       total_amount: 0,
       ranking_score: 0,
@@ -31,6 +32,7 @@ export class PrePurchaseOrdersService {
       pre_order_number: `OPP-${Date.now().toString().slice(-6)}`,
       id_worker,
       base_items,
+      type,
       quotes: initialQuotes,
       status: 'SOLICITANDO'
     });
@@ -45,8 +47,8 @@ export class PrePurchaseOrdersService {
     const preOrder = await this.preOrderModel.findById(preOrderId);
     if (!preOrder) throw new NotFoundException('Orden de precompra no encontrada');
 
-    const quoteIndex = preOrder.quotes.findIndex(q => q.id_supplier.toString() === supplierId);
-    if (quoteIndex === -1) throw new BadRequestException('El proveedor no está invitado a esta precompra');
+    const quoteIndex = preOrder.quotes.findIndex(q => q.id_agent.toString() === supplierId);
+    if (quoteIndex === -1) throw new BadRequestException('El agente no está invitado a esta precompra');
 
     const totalAmount = updatedItems.reduce((acc, it) => acc + (it.quantity * it.unit_cost), 0);
 
@@ -59,13 +61,14 @@ export class PrePurchaseOrdersService {
     preOrder.quotes[quoteIndex].ranking_score = await this.rankingService.calculateGlobalRanking(
       supplierId,
       mainVariantId,
-      unitPrice
+      unitPrice,
+      preOrder.quotes[quoteIndex].onModel
     );
 
     preOrder.status = 'COMPARANDO';
     const updatedOrder = await preOrder.save();
     return await this.preOrderModel.findById(updatedOrder._id)
-    .populate('quotes.id_supplier')
+    .populate('quotes.id_agent')
     .populate('quotes.items.id_variant')
     .populate({
       path: 'base_items.id_variant',
@@ -86,13 +89,14 @@ export class PrePurchaseOrdersService {
   if (!preOrder) throw new NotFoundException('Orden de precompra no encontrada');
   if (preOrder.status === 'CONVERTIDA') throw new BadRequestException('Esta orden ya fue cerrada');
 
-  const winnerQuote = preOrder.quotes.find(q => q.id_supplier.toString() === winnerSupplierId);
+  const winnerQuote = preOrder.quotes.find(q => q.id_agent.toString() === winnerSupplierId);
   if (!winnerQuote) throw new BadRequestException('Cotización no encontrada');
 
   const purchaseOrder = await this.poService.create({
     id_pre_purchase_order: preOrder._id.toString(), 
     order_number: `OC-${Date.now().toString().slice(-6)}`, 
     id_supplier: winnerSupplierId,
+    onModel: winnerQuote.onModel,
     id_worker: preOrder.id_worker.toString(),
     items: winnerQuote.items.map(it => ({
       id_variant: it.id_variant.toString(),
@@ -100,7 +104,6 @@ export class PrePurchaseOrdersService {
       unit_cost: Number(it.unit_cost)
     })),
     total_amount: winnerQuote.total_amount,
-    // 🔥 CORRECCIÓN: Pasa el string directamente, TS dejará de quejarse
     delivery_date_estimated: deliveryDate, 
     notes: `Generada desde la Pre-Orden ${preOrder.pre_order_number}`
   });
@@ -120,28 +123,36 @@ export class PrePurchaseOrdersService {
   /**
    * 4. LISTAR TODAS (Nuevos métodos agregados)
    */
-  async findAll() {
-  return this.preOrderModel
-    .find()
-    .populate('quotes.id_supplier')
-    .populate('id_purchase_order') 
-    .populate('id_worker')
-    // ✅ AGREGA ESTA LÍNEA para poblar la variante dentro de las cotizaciones
-    .populate('quotes.items.id_variant') 
-    .populate({
-      path: 'base_items.id_variant',
-      populate: { path: 'id_product' },
-    })
-    .sort({ created_at: -1 })
-    .exec();
-}
+  async findAll(type?: string) {
+    let query: any = {};
+    if (type) {
+      if (type === 'ABASTECIMIENTO') {
+        query = { $or: [{ type }, { type: { $exists: false } }] };
+      } else {
+        query = { type };
+      }
+    }
+
+    return this.preOrderModel
+      .find(query)
+      .populate('quotes.id_agent')
+      .populate('id_purchase_order') 
+      .populate('id_worker')
+      .populate('quotes.items.id_variant') 
+      .populate({
+        path: 'base_items.id_variant',
+        populate: { path: 'id_product' },
+      })
+      .sort({ created_at: -1 })
+      .exec();
+  }
 
   /**
    * 5. OBTENER UNA POR ID
    */
   async findOne(id: string): Promise<PrePurchaseOrder> {
     const preOrder = await this.preOrderModel.findById(id)
-      .populate('quotes.id_supplier')
+      .populate('quotes.id_agent')
       .populate('id_worker')
       .populate('base_items.id_variant')
       .exec();
@@ -149,5 +160,26 @@ export class PrePurchaseOrdersService {
     if (!preOrder) throw new NotFoundException('Orden de precompra no encontrada');
     return preOrder;
   }
-  
+
+  /**
+   * 6. ACTUALIZAR ESTADO
+   */
+  async updateStatus(id: string, status: string): Promise<PrePurchaseOrder> {
+    const preOrder = await this.preOrderModel.findById(id);
+    if (!preOrder) throw new NotFoundException('Orden de precompra no encontrada');
+
+    preOrder.status = status;
+    await preOrder.save();
+
+    return this.preOrderModel.findById(id)
+      .populate('quotes.id_agent')
+      .populate('id_purchase_order')
+      .populate('id_worker')
+      .populate('quotes.items.id_variant')
+      .populate({
+        path: 'base_items.id_variant',
+        populate: { path: 'id_product' },
+      })
+      .exec();
+  }
 }

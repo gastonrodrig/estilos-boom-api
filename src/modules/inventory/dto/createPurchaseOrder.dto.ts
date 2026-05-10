@@ -12,9 +12,11 @@ export class CreatePurchaseOrderDto {
   @IsOptional()
   order_number: string;
 
-  @IsMongoId()
-  @IsNotEmpty()
   id_supplier: string;
+  
+  @IsEnum(['Supplier', 'Workshop'])
+  @IsOptional()
+  onModel?: string;
 
   @IsMongoId()
   @IsNotEmpty()

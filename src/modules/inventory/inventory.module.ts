@@ -14,6 +14,7 @@ import { StorageService } from '../firebase/services';
 import { PrePurchaseOrder, PrePurchaseOrderSchema } from './schema/prepurchaseOrder.schema';
 import { PrePurchaseOrdersService } from './service/prepurchase-order.service';
 import { PrePurchaseOrdersController } from './controller/prepurchase.controller';
+import { Workshop, WorkshopSchema } from '../workshop/schema/workshop.schema';
 
 @Module({
   imports: [
@@ -23,7 +24,8 @@ import { PrePurchaseOrdersController } from './controller/prepurchase.controller
       // DEBES AGREGAR ESTOS DOS AQUÍ:
       { name: ProductVariant.name, schema: ProductVariantSchema },
       { name: Supplier.name, schema: SupplierSchema },
-      { name: PrePurchaseOrder.name, schema: PrePurchaseOrderSchema }
+      { name: PrePurchaseOrder.name, schema: PrePurchaseOrderSchema },
+      { name: Workshop.name, schema: WorkshopSchema }
     ]),
   ],
   controllers: [
