@@ -119,8 +119,14 @@ export class PurchaseOrdersService {
   }
 
   async findOne(id: string) {
-    return this.poModel.findById(id).populate('id_supplier').populate('items.id_variant').exec();
-  }
+  return this.poModel.findById(id)
+    .populate('id_supplier')
+    .populate({
+      path: 'items.id_variant',
+      populate: { path: 'id_product' } // 👈 Esto trae el nombre del producto (ej: Polo Barca)
+    })
+    .exec();
+}
 
   async startQualityCheck(purchaseOrderId: string, preOrderId: string) {
   
