@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Connection, Model, Types } from 'mongoose';
 import { PurchaseOrder, PurchaseOrderDocument } from '../schema';
@@ -10,13 +10,14 @@ import { SuppliersService } from 'src/modules/supplier/service/suppliers.service
 import { RankingService } from './ranking.service';
 import { PrePurchaseOrder, PrePurchaseOrderDocument } from '../schema/prepurchaseOrder.schema';
 import { PrePurchaseOrdersService } from './prepurchase-order.service';
+import { InventoryService } from './inventory.service';
 
 @Injectable()
 export class PurchaseOrdersService {
   constructor(
     @InjectModel(PurchaseOrder.name) private poModel: Model<PurchaseOrderDocument>,
     @InjectModel(ProductVariant.name) private variantModel: Model<ProductVariantDocument>,
-    @InjectModel(InventoryMovement.name) private movementModel: Model<InventoryMovementDocument>,
+    private readonly inventoryService: InventoryService,
     @InjectConnection() private readonly connection: Connection, // Inyecta la conexión para transacciones
     private readonly supplierService: SuppliersService, // Necesitarás esto para el ranking
     private readonly rankingService: RankingService, // Necesitarás esto para el ranking
@@ -76,41 +77,48 @@ export class PurchaseOrdersService {
 
   // 3. Función Privada: Procesar la entrada de mercadería al stock y Kardex
  private async handleStockReceipt(order: PurchaseOrderDocument, workerId: string, session: ClientSession) {
-  for (const item of order.items) {
-    const variantId = new Types.ObjectId(item.id_variant as any);
+    // 1. Buscamos el ID único del Almacén Central en la base de datos
+    // Usamos la misma sesión de la transacción para garantizar lectura consistente
+    const centralWarehouse = await this.connection.model('Warehouse').findOne(
+      { name: 'ALMACEN_CENTRAL' }
+    ).session(session).exec() as { _id: any } | null; // 👈 Agregamos este "as" para guiar a TypeScript
 
-    // ✅ Ahora Mongoose no borrará el campo 'stock' antes de enviar la orden a Mongo
-    const updateResult = await this.variantModel.findByIdAndUpdate(
-      variantId,
-      { 
-        $inc: { 
-          physical_stock: Number(item.quantity), 
-          stock: Number(item.quantity) 
-        } 
-      },
-      { session, new: true } 
-    );
-
-    if (!updateResult) {
-      console.error(`Error: Variante ${variantId} no encontrada`);
-      continue;
+    if (!centralWarehouse) {
+      throw new InternalServerErrorException(
+        'Error crítico: El Almacén Central no está inicializado en el sistema.'
+      );
     }
 
-    // Registrar en Kardex
-    const movement = new this.movementModel({
-      id_variant: variantId,
-      id_purchase_order: order._id,
-      id_worker: workerId || order.id_worker,
-      type: 'ENTRADA',
-      quantity: item.quantity,
-      previous_stock: Number(updateResult.physical_stock) - item.quantity,
-      new_stock: Number(updateResult.physical_stock),
-      reason: `Ingreso de mercadería - OC: ${order.order_number}`,
-    });
+    // 2. Iteramos los artículos de la Orden de Compra para inyectar stock
+    for (const item of order.items) {
+      const variantId = String(item.id_variant);
 
-    await movement.save({ session });
+      // 🚀 DELEGAMOS TODO EL TRABAJO PESADO AL INVENTORY SERVICE
+      // Este método ya se encarga de:
+      //   - Obtener o inicializar el stock de la variante en ese almacén.
+      //   - Calcular el previous_stock y new_stock exactos.
+      //   - Actualizar WarehouseStock y guardar la auditoría en InventoryMovement.
+      await this.inventoryService.createMovement({
+        id_variant: variantId,
+        id_warehouse: String(centralWarehouse._id), // 👈 Destino por defecto
+        id_worker: workerId || String(order.id_worker),
+        id_purchase_order: String(order._id), // Vinculamos la OC para el Kardex
+        type: 'ENTRADA',
+        quantity: Number(item.quantity),
+        reason: `Ingreso de mercadería por recepción de OC: ${order.order_number}`
+      });
+      
+      // 💡 NOTA PARA TU TESIS:
+      // Si aún necesitas actualizar un stock global acumulado en variantModel por compatibilidad 
+      // con tu catálogo del front, puedes mantener un $inc aquí, de lo contrario puedes borrarlo
+      // y hacer que el front lea directamente de WarehouseStock.
+      await this.variantModel.findByIdAndUpdate(
+        variantId,
+        { $inc: { physical_stock: Number(item.quantity), stock: Number(item.quantity) } },
+        { session }
+      );
+    }
   }
-}
 
   // 4. Listar órdenes (con filtros opcionales)
   async findAll() {

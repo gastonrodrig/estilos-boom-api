@@ -8,6 +8,9 @@ export class InventoryMovement {
   @Prop({ type: Types.ObjectId, ref: 'ProductVariant', required: true })
   id_variant: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'Warehouse', required: true })
+  id_warehouse: Types.ObjectId;
+
   @Prop({ type: Types.ObjectId, ref: 'PurchaseOrder' }) 
   id_purchase_order: Types.ObjectId;
 

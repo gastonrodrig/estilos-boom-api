@@ -4,16 +4,15 @@ import { Document, Types } from 'mongoose';
 export type ProductDocument = Product & Document;
 
 // Subdocumento para los materiales de la Ficha Técnica (No lleva _id propio)
+// Así cambia el subdocumento dentro de tu product.schema.ts
 @Schema({ _id: false })
 class SupplyItem {
-  @Prop({ type: String, required: true })
-  name: string; // ej. "Elástico 2cm"
+  // 🔗 Vincuamos con la nueva colección Supply mediante su ID único
+  @Prop({ type: Types.ObjectId, ref: 'Supply', required: true })
+  id_supply: Types.ObjectId; 
 
   @Prop({ type: Number, required: true })
-  quantity: number;
-
-  @Prop({ type: String, required: true })
-  unit: string; // ej. "metros", "unidades"
+  quantity: number; // Cantidad requerida para producir esta prenda (ej: 1.5)
 }
 
 @Schema({

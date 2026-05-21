@@ -11,6 +11,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { FirebaseAuthGuard } from './auth/guards/firebase-auth.guard';
 import { CartModule } from './modules/cart/cart.module';
+import { SupplyModule } from './modules/supplie/supplie.module';
 
 import { ScheduleModule } from '@nestjs/schedule';
 import { InventoryModule } from './modules/inventory/inventory.module';
@@ -53,7 +54,7 @@ import { WorkshopModule } from './modules/workshop/workshop.module';
     UserModule,
     FirebaseModule,
     CartModule,
-
+    SupplyModule,
     InventoryModule,
     SupplierModule,
     WorkshopModule

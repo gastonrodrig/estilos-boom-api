@@ -2,7 +2,13 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { 
   InventoryMovement, InventoryMovementSchema, 
-  PurchaseOrder, PurchaseOrderSchema 
+  InventoryTransfer, 
+  InventoryTransferSchema, 
+  PurchaseOrder, PurchaseOrderSchema, 
+  Warehouse, 
+  WarehouseSchema, 
+  WarehouseStock, 
+  WarehouseStockSchema
 } from './schema';
 import { ProductVariant, ProductVariantSchema } from '../product/schemas'; // Importante
 import { Supplier, SupplierSchema } from '../supplier/schema/supplier.schema'; // Importante
@@ -25,7 +31,10 @@ import { Workshop, WorkshopSchema } from '../workshop/schema/workshop.schema';
       { name: ProductVariant.name, schema: ProductVariantSchema },
       { name: Supplier.name, schema: SupplierSchema },
       { name: PrePurchaseOrder.name, schema: PrePurchaseOrderSchema },
-      { name: Workshop.name, schema: WorkshopSchema }
+      { name: Workshop.name, schema: WorkshopSchema },
+      { name: Warehouse.name, schema: WarehouseSchema },
+      { name: WarehouseStock.name, schema: WarehouseStockSchema },
+      { name: InventoryTransfer.name, schema: InventoryTransferSchema },
     ]),
   ],
   controllers: [
