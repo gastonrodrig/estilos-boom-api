@@ -30,37 +30,44 @@ export class StorageService {
   }
 
   async uploadMultipleFiles(
-    location: string, 
-    files: Express.Multer.File[] = [], 
-    folderName: string
-  ): Promise<object[]> {
-    if (!Array.isArray(files)) {
-      throw new Error('Files should be an array');
-    }
-
-    const bucket = admin.storage().bucket();
-    const uploadedUrls: object[] = [];
-
-    for (const file of files) {
-      const { originalname, buffer, mimetype } = file;
-
-      const uniqueFilename = `${Date.now()}-${originalname}`;
-      const filePath = `${location}/${folderName}/${uniqueFilename}`;
-      const fileBlob = bucket.file(filePath);
-
-      await fileBlob.save(buffer, { contentType: mimetype });
-      await fileBlob.makePublic();
-
-      const [metadata] = await fileBlob.getMetadata();
-      uploadedUrls.push({
-        url: `https://storage.googleapis.com/${bucket.name}/${fileBlob.name}`,
-        name: uniqueFilename,
-        size: metadata.size,
-        storagePath: filePath
-      });
-    }
-    return uploadedUrls;
+  location: string, 
+  files: Express.Multer.File[] = [], 
+  folderName: string
+): Promise<object[]> {
+  if (!Array.isArray(files)) {
+    throw new Error('Files should be an array');
   }
+
+  const bucket = admin.storage().bucket();
+
+  // 🚀 Mapeamos cada archivo a una promesa de subida paralela
+  const uploadPromises = files.map(async (file) => {
+    const { originalname, buffer, mimetype } = file;
+
+    const uniqueFilename = `${Date.now()}-${originalname}`;
+    const filePath = `${location}/${folderName}/${uniqueFilename}`;
+    const fileBlob = bucket.file(filePath);
+
+    // Guardamos el archivo en el bucket
+    await fileBlob.save(buffer, { contentType: mimetype });
+    await fileBlob.makePublic();
+
+    const [metadata] = await fileBlob.getMetadata();
+    
+    // Retornamos el objeto estructurado igual que antes
+    return {
+      url: `https://storage.googleapis.com/${bucket.name}/${fileBlob.name}`,
+      name: uniqueFilename,
+      size: Number(metadata.size),
+      storagePath: filePath
+    };
+  });
+
+  // 🔥 ¡La magia ocurre aquí! Ejecuta todas las subidas en paralelo de forma concurrente
+  const uploadedUrls = await Promise.all(uploadPromises);
+  
+  return uploadedUrls;
+}
 
   async deleteFile(pathOrUrl: string): Promise<void> {
     const bucket = admin.storage().bucket();

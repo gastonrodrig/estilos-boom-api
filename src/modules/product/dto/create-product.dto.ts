@@ -77,7 +77,28 @@ export class CreateProductDto {
   @IsNotEmpty()
   id_category: string;
 
-  @ApiProperty({ required: false })
+  // 🔄 NUEVO: Tipo de Origen (Retail o Producción)
+  @ApiProperty({ example: 'PRODUCCION', enum: ['RETAIL', 'PRODUCCION'], description: 'Origen del stock inicial' })
+  @IsEnum(['RETAIL', 'PRODUCCION'])
+  @IsNotEmpty()
+  origin_type: string;
+
+  // 🧵 NUEVO: Ficha Técnica de Insumos (Llega como String de JSON desde el FormData)
+  @ApiProperty({ 
+    example: '[{"name":"Elástico 2cm","quantity":2,"unit":"metros"}]', 
+    description: 'Ficha técnica en formato JSON String (Solo si origin_type es PRODUCCION)',
+    required: false 
+  })
+  @IsString()
   @IsOptional()
-  variants?: any;
+  technical_sheet?: string;
+
+  // 🎨 ACTUALIZADO: Lista de variantes que recibe el formulario
+  @ApiProperty({ 
+    example: '[{"size":"M","color":{"name":"Rosa Barbie","hex":"#FF4FA3"},"stock":10,"sku_variant":"VEST-M-ROS"}]',
+    description: 'Array de variantes stringizado en JSON con el nuevo formato de color objeto'
+  })
+  @IsString()
+  @IsNotEmpty()
+  variants: string;
 }

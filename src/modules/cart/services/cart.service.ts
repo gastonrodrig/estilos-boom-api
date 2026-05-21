@@ -69,11 +69,17 @@ export class CartService {
       throw new NotFoundException("Producto no encontrado");
     }
 
+    // 🕵️‍♂️ Validamos qué tipo de dato está llegando en 'color'
+    // Si viene el objeto completo { name, hex }, extraemos solo el name. Si viene el string, lo usamos directo.
+    const colorName = color 
+  ? (typeof color === 'object' ? (color as any).name : color) 
+  : ''; // Si color es null o undefined, le asignamos un string vacío
+
     const variant = await this.productVariantModel
       .findOne({
         id_product: new Types.ObjectId(productId),
         size,
-        color,
+        'color.name': colorName,
       })
       .lean();
 

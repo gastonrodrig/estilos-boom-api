@@ -3,21 +3,26 @@ import {
   BadRequestException,
   UseInterceptors,
   UploadedFiles,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ProductService } from '../services';
 import { CreateProductDto } from '../dto';
-import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiConsumes, ApiBody, ApiBearerAuth, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { Public } from 'src/auth/decorators';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { CreateVariantDto } from '../dto/create-variant.dto';
 
-@ApiTags('Products')
+@ApiTags('Productos (Products)')
 @ApiBearerAuth('firebase-auth')
 @Controller('products')
 export class ProductController {
   constructor(private readonly productService: ProductService) { }
 
-  @ApiOperation({ summary: 'Crear un producto con detalles técnicos e imágenes' })
+  @ApiOperation({ 
+    summary: 'Crear un producto con detalles técnicos, variantes e imágenes',
+    description: 'Permite registrar un producto gestionando sus variantes con color objeto (name/hex). Soporta fichas técnicas si proviene de producción propia.' 
+  })
   @Public()
   @Post()
   @ApiConsumes('multipart/form-data')
@@ -25,34 +30,46 @@ export class ProductController {
     schema: {
       type: 'object',
       properties: {
-        name: { type: 'string', example: 'Vestido Gala' },
-        description: { type: 'string', example: 'Vestido largo elegante' },
-        sku: { type: 'string', example: 'VEST-GALA-01' },
-        base_price: { type: 'number', example: 120.50 },
-        id_category: { type: 'string', example: 'id-de-mongo' },
-        // --- NUEVOS CAMPOS EN SWAGGER ---
+        name: { type: 'string', example: 'Vestido Gala Texturizado' },
+        description: { type: 'string', example: 'Vestido largo elegante de seda' },
+        sku: { type: 'string', example: 'VEST-GALA-100' },
+        base_price: { type: 'number', example: 140.50 },
+        id_category: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
         gender: { type: 'string', enum: ['MUJER', 'HOMBRE', 'UNISEX'], example: 'MUJER' },
         style_type: { type: 'string', example: 'CASUAL PREMIUM' },
         composition: { type: 'string', example: '95% ALGODÓN, 5% ELASTANO' },
         season: { type: 'string', example: 'PRIMAVERA 2026' },
         highlights: { 
           type: 'string', 
-          description: 'Array en JSON: ["Tejido suave", "Corte entallado"]' 
+          description: 'Array en JSON: ["Tejido suave", "Corte entallado"]',
+          example: '["Tejido suave", "Corte entallado"]'
         },
         custom_size_guide_url: { type: 'string', description: 'URL de imagen si es guía especial' },
-        // -------------------------------
         is_best_seller: { type: 'boolean', example: false },
         is_new_in: { type: 'boolean', example: true },
+        
+        // 🔄 NUEVO CAMPO EN SWAGGER UI: Tipo de Origen
+        origin_type: { type: 'string', enum: ['RETAIL', 'PRODUCCION'], example: 'PRODUCCION' },
+        
+        // 🧵 NUEVO CAMPO EN SWAGGER UI: Ficha técnica stringizada
+        technical_sheet: {
+          type: 'string',
+          description: 'JSON String de insumos (Solo si origin_type es PRODUCCION)',
+          example: '[{"name":"Elástico 2cm","quantity":2,"unit":"metros"}]'
+        },
+        
+        // 🎨 ACTUALIZADO EN SWAGGER UI: Nuevo formato de variantes con color estructurado
         variants: {
           type: 'string',
-          description: 'JSON de variantes: [{"size":"S","color":"Negro","stock":10,"sku_variant":"V1"}]'
+          description: 'JSON String de variantes con objeto color {name, hex}',
+          example: '[{"size":"M","color":{"name":"Rosa Barbie","hex":"#FF4FA3"},"stock":10,"sku_variant":"VEST-M-ROS"}]'
         },
         files: {
           type: 'array',
           items: { type: 'string', format: 'binary' },
         },
       },
-      required: ['name', 'sku', 'base_price', 'id_category', 'gender', 'files'],
+      required: ['name', 'sku', 'base_price', 'id_category', 'gender', 'origin_type', 'variants', 'files'],
     },
   })
   @UseInterceptors(FilesInterceptor('files', 5))
@@ -65,36 +82,30 @@ export class ProductController {
     }
 
     const parseJsonField = (field: any) => {
-  if (!field || typeof field !== 'string') return field;
-  
-  // Si parece un JSON (empieza con [ o {), intentamos parsearlo
-  if (field.startsWith('[') || field.startsWith('{')) {
-    try {
-      return JSON.parse(field);
-    } catch (e) {
-      return [field]; 
-    }
-  }
-  
-  // Si NO es JSON pero tiene comas, lo convertimos en array por comas
-  if (field.includes(',')) {
-    return field.split(',').map(item => item.trim());
-  }
+      if (!field || typeof field !== 'string') return field;
+      if (field.startsWith('[') || field.startsWith('{')) {
+        try {
+          return JSON.parse(field);
+        } catch (e) {
+          return [field]; 
+        }
+      }
+      if (field.includes(',')) {
+        return field.split(',').map(item => item.trim());
+      }
+      return [field];
+    };
 
-  // Si es solo un texto normal, lo metemos en un array
-  return [field];
-};
-
-    // TRANSFORMACIÓN MANUAL (Por ser multipart/form-data)
+    // TRANSFORMACIÓN MANUAL Y CONTROLADA DEL BODY MULTIPART
     const createProductDto: CreateProductDto = {
       ...body,
       base_price: Number(body.base_price),
       is_best_seller: body.is_best_seller === 'true' || body.is_best_seller === true,
       is_new_in: body.is_new_in === 'true' || body.is_new_in === true,
-      // Parsear JSONs que vienen como strings
-      variants: parseJsonField(body.variants),
-      highlights: parseJsonField(body.highlights), 
-  technical_details: parseJsonField(body.technical_details),
+      variants: body.variants, // El servicio se encargará de parsearlo/validarlo de forma interna
+      technical_sheet: body.technical_sheet || undefined,
+      highlights: body.highlights ? parseJsonField(body.highlights) : [], 
+      technical_details: body.technical_details ? parseJsonField(body.technical_details) : undefined,
     };
 
     return this.productService.create(createProductDto, files);
@@ -103,10 +114,11 @@ export class ProductController {
   @Get()
   @ApiOperation({ summary: 'Obtener todos los productos con filtros avanzados' })
   @Public()
-  @ApiQuery({ name: 'category', required: false })
-  @ApiQuery({ name: 'gender', required: false, enum: ['MUJER', 'HOMBRE', 'UNISEX'] }) // 👈 Nuevo
-  @ApiQuery({ name: 'season', required: false }) // 👈 Nuevo
-  @ApiQuery({ name: 'maxPrice', required: false, type: Number })
+  @ApiQuery({ name: 'category', required: false, description: 'Filtrar por nombre de categoría' })
+  @ApiQuery({ name: 'gender', required: false, enum: ['MUJER', 'HOMBRE', 'UNISEX'] }) 
+  @ApiQuery({ name: 'season', required: false, description: 'Filtrar por temporada de ropa' }) 
+  @ApiQuery({ name: 'maxPrice', required: false, type: Number, description: 'Tope máximo de precio base' })
+  @ApiQuery({ name: 'colors', required: false, description: 'Filtrar por nombre de color (ej: Negro)' })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
   async findAll(@Query() query: any) {
@@ -114,108 +126,103 @@ export class ProductController {
   }
 
   @ApiOperation({ summary: 'Actualizar producto, imágenes y variantes (Borrón y cuenta nueva)' })
-  @ApiConsumes('multipart/form-data') // IMPORTANTE
+  @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        // Define solo los campos que quieres permitir actualizar visualmente en Swagger
         name: { type: 'string', example: 'Nuevo Nombre del Vestido' },
         sku: { type: 'string', example: 'NUEVO-SKU-001' },
         base_price: { type: 'number', example: 145.99 },
-        id_category: { type: 'string', example: 'uuid-valido-de-categoria' },
+        id_category: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
         is_best_seller: { type: 'boolean' },
         is_new_in: { type: 'boolean' },
-
-        // Campo variantes como STRING JSON
+        origin_type: { type: 'string', enum: ['RETAIL', 'PRODUCCION'] },
+        technical_sheet: {
+          type: 'string',
+          example: '[{"name":"Elástico 2cm","quantity":3,"unit":"metros"}]'
+        },
         variants: {
           type: 'string',
-          description: 'Pega el JSON completo de las nuevas variantes'
+          description: 'Pega el JSON completo de las nuevas variantes con el formato estructurado'
         },
-
-        // Campo para subir archivos nuevos
         files: {
           type: 'array',
-          items: {
-            type: 'string',
-            format: 'binary',
-          },
+          items: { type: 'string', format: 'binary' },
         },
       },
     },
   })
-
   @Patch(':id')
   @Public()
   @UseInterceptors(FilesInterceptor('files', 5))
   async update(
     @Param('id') id: string,
     @UploadedFiles() files: Express.Multer.File[],
-    @Body() body: any // Usamos any para procesar los strings que envía Swagger
+    @Body() body: any 
   ) {
-    // 2. Aquí debe estar la lógica de transformación que vimos antes
-    // Si no transformas, base_price llegará como "145.99" (string) y Prisma lo ignorará.
     const updateDto = {
       ...body,
       base_price: body.base_price ? Number(body.base_price) : undefined,
-      is_best_seller: body.is_best_seller === 'true',
-      is_new_in: body.is_new_in === 'true',
-      variants: body.variants ? JSON.parse(body.variants) : undefined,
+      is_best_seller: body.is_best_seller === 'true' || body.is_best_seller === true,
+      is_new_in: body.is_new_in === 'true' || body.is_new_in === true,
+      variants: body.variants || undefined,
+      technical_sheet: body.technical_sheet || undefined,
     };
 
     return this.productService.update(id, updateDto, files);
   }
 
-  
-
   @Get(':id')
   @Public()
+  @ApiOperation({ summary: 'Obtener detalle de un producto y sus variantes por ID' })
   findOne(@Param('id') id: string) {
     return this.productService.findOne(id);
   }
 
-  @Patch(':id/stock/:stock')
-  @ApiOperation({ summary: 'Update product stock' })
+  @Patch(':idVariant/stock/:stock')
+  @Public()
+  @ApiOperation({ summary: 'Actualizar el stock físico disponible de una variante por su ID' })
   updateStock(
-  @Param('idVariant') idVariant: string,
-  @Param('stock') stock: number, // Cambiado de @Body a @Param porque así está en tu ruta
-) {
-  return this.productService.updateVariantStock(idVariant, Number(stock));
-}
+    @Param('idVariant') idVariant: string,
+    @Param('stock') stock: number, 
+  ) {
+    return this.productService.updateVariantStock(idVariant, Number(stock));
+  }
 
   @Delete(':id')
+  @Public()
+  @ApiOperation({ summary: 'Desactivar un producto de forma lógica (is_active: false)' })
   remove(@Param('id') id: string) {
     return this.productService.deactivate(id);
   }
 
   @Post('variants')
-    @Public() // Según tu configuración de seguridad
-    @ApiOperation({ summary: 'Crear una variante de producto de forma independiente' })
-    async createVariant(@Body() dto: CreateVariantDto) {
-      return this.productService.createVariant(dto);
+  @Public() 
+  @ApiOperation({ summary: 'Crear una variante de producto de forma independiente' })
+  async createVariant(@Body() dto: CreateVariantDto) {
+    return this.productService.createVariant(dto);
+  }
+
+  @Patch(':idVariant/min-stock')
+  @Public() 
+  @ApiOperation({ summary: 'Actualizar el umbral de alerta de stock mínimo de una variante' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        min_stock_alert: { type: 'number', example: 15 }
+      },
+      required: ['min_stock_alert']
     }
-
-    @ApiOperation({ summary: 'Actualizar el umbral de alerta de stock mínimo de una variante' })
-@ApiBody({
-  schema: {
-    type: 'object',
-    properties: {
-      min_stock_alert: { type: 'number', example: 15 }
-    },
-    required: ['min_stock_alert']
+  })
+  async updateMinStock(
+    @Param('idVariant') idVariant: string,
+    @Body('min_stock_alert') minStock: number,
+  ) {
+    if (isNaN(minStock)) {
+      throw new BadRequestException('El valor de min_stock_alert debe ser un número');
+    }
+    return this.productService.updateMinStockAlert(idVariant, Number(minStock));
   }
-})
-@Patch(':idVariant/min-stock')
-@Public() // Ajustar según tu política de seguridad
-async updateMinStock(
-  @Param('idVariant') idVariant: string,
-  @Body('min_stock_alert') minStock: number,
-) {
-  // Validamos que el valor sea numérico antes de enviarlo al servicio
-  if (isNaN(minStock)) {
-    throw new BadRequestException('El valor de min_stock_alert debe ser un número');
-  }
-
-  return this.productService.updateMinStockAlert(idVariant, Number(minStock));
-}
 }

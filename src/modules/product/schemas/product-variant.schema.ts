@@ -10,8 +10,18 @@ export class ProductVariant {
   @Prop({ required: true })
   size: string;
 
-  @Prop({ required: true })
-  color: string;
+  @Prop({
+    type: {
+      name: { type: String, required: true }, // Ej: "Rosa Barbie"
+      hex: { type: String, required: true },  // Ej: "#FF4FA3"
+    },
+    required: true,
+    _id: false // Evita que Mongo le genere un ID único a este subobjeto
+  })
+  color: {
+    name: string;
+    hex: string;
+  };
 
   // 🔥 AGREGAR ESTO: El stock disponible para la venta
   @Prop({ default: 0 })
