@@ -14,7 +14,7 @@ export class CreatePurchaseOrderDto {
 
   id_supplier: string;
   
-  @IsEnum(['Supplier', 'Workshop'])
+  @IsEnum(['Supplier'])
   @IsOptional()
   onModel?: string;
 

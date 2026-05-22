@@ -17,11 +17,11 @@ export class PrePurchaseOrdersService {
    * 1. CREACIÓN: Inicia la solicitud de cotización
    */
   async create(createDto: any): Promise<PrePurchaseOrder> {
-    const { base_items, supplier_ids, id_worker, type = 'ABASTECIMIENTO', onModel = 'Supplier' } = createDto;
+    const { base_items, supplier_ids, id_worker, type = 'ABASTECIMIENTO' } = createDto;
 
     const initialQuotes: SupplierQuote[] = supplier_ids.map(id => ({
       id_agent: id,
-      onModel: onModel, // Puede venir 'Workshop' desde el front si es producción
+      onModel: 'Supplier',
       items: base_items.map(item => ({ ...item, unit_cost: 0 })),
       total_amount: 0,
       ranking_score: 0,
@@ -61,8 +61,7 @@ export class PrePurchaseOrdersService {
     preOrder.quotes[quoteIndex].ranking_score = await this.rankingService.calculateGlobalRanking(
       supplierId,
       mainVariantId,
-      unitPrice,
-      preOrder.quotes[quoteIndex].onModel
+      unitPrice
     );
 
     preOrder.status = 'COMPARANDO';
@@ -124,14 +123,7 @@ export class PrePurchaseOrdersService {
    * 4. LISTAR TODAS (Nuevos métodos agregados)
    */
   async findAll(type?: string) {
-    let query: any = {};
-    if (type) {
-      if (type === 'ABASTECIMIENTO') {
-        query = { $or: [{ type }, { type: { $exists: false } }] };
-      } else {
-        query = { type };
-      }
-    }
+    let query: any = { type: 'ABASTECIMIENTO' };
 
     return this.preOrderModel
       .find(query)

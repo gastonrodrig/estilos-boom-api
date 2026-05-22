@@ -17,8 +17,8 @@ export class PurchaseOrderItem {
 // 2. Ahora SupplierQuote puede encontrar a PurchaseOrderItem y ser dinámico
 @Schema({ _id: false })
 export class SupplierQuote {
-  @Prop({ type: String, enum: ['Supplier', 'Workshop'], required: true })
-  onModel: string; // Determina si es un Proveedor o un Taller
+  @Prop({ type: String, enum: ['Supplier'], required: true })
+  onModel: string; // Determina si es un Proveedor
 
   @Prop({ type: Types.ObjectId, refPath: 'quotes.onModel', required: true })
   id_agent: Types.ObjectId; // El ID del agente (Proveedor o Taller)
@@ -42,7 +42,7 @@ export class PrePurchaseOrder {
   @Prop({ required: true, unique: true })
   pre_order_number: string;
 
-  @Prop({ type: String, enum: ['ABASTECIMIENTO', 'PRODUCCION'], default: 'ABASTECIMIENTO' })
+  @Prop({ type: String, enum: ['ABASTECIMIENTO'], default: 'ABASTECIMIENTO' })
   type: string;
 
   @Prop({ type: Types.ObjectId, ref: 'Worker', required: true })

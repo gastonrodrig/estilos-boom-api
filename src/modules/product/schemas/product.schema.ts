@@ -3,17 +3,7 @@ import { Document, Types } from 'mongoose';
 
 export type ProductDocument = Product & Document;
 
-// Subdocumento para los materiales de la Ficha Técnica (No lleva _id propio)
-// Así cambia el subdocumento dentro de tu product.schema.ts
-@Schema({ _id: false })
-class SupplyItem {
-  // 🔗 Vincuamos con la nueva colección Supply mediante su ID único
-  @Prop({ type: Types.ObjectId, ref: 'Supply', required: true })
-  id_supply: Types.ObjectId; 
 
-  @Prop({ type: Number, required: true })
-  quantity: number; // Cantidad requerida para producir esta prenda (ej: 1.5)
-}
 
 @Schema({
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
@@ -70,11 +60,8 @@ export class Product {
   @Prop({ type: Types.ObjectId, ref: 'Category', required: true })
   id_category: Types.ObjectId;
 
-  @Prop({ type: String, enum: ['RETAIL', 'PRODUCCION'], default: 'RETAIL', required: true })
+  @Prop({ type: String, enum: ['RETAIL'], default: 'RETAIL', required: true })
   origin_type: string;
-
-  @Prop({ type: [SupplyItem], default: undefined })
-  technical_sheet?: SupplyItem[]; // Solo se poblará si origin_type === 'PRODUCCION'
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

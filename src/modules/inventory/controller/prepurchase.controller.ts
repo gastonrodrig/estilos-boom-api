@@ -71,7 +71,7 @@ export class PrePurchaseOrdersController {
   }
 
   /**
-   * 6. Actualizar el estado de la pre-orden (Seguimiento de Producción)
+   * 6. Actualizar el estado de la pre-orden
    * PATCH /pre-purchase-orders/:id/status
    */
   @Patch(':id/status')

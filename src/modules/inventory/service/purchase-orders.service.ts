@@ -64,7 +64,7 @@ export class PurchaseOrdersService {
         // 4. ¡AHORA SÍ! Disparamos el ranking después del commit
         // Ahora que la OC ya es 'RECEIVED' en la BD, el RankingService la encontrará.
         if (status === OrderStatus.RECEIVED) {
-          await this.rankingService.updateRanking(order.id_supplier.toString(), order.onModel);
+          await this.rankingService.updateRanking(order.id_supplier.toString());
         }
 
         return savedOrder;
@@ -240,7 +240,7 @@ async approveAndInventory(
     session.endSession();
 
     // 6. ACTUALIZAR RANKING
-    await this.rankingService.updateRanking(order.id_supplier.toString(), order.onModel);
+    await this.rankingService.updateRanking(order.id_supplier.toString());
 
     return {
       message: 'Mercadería integrada con éxito y ranking actualizado.',

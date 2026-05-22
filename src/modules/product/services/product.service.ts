@@ -208,18 +208,9 @@ export class ProductService {
         dto.sku,
       );
 
-      // 🧵 2. Parseo de la Ficha Técnica si proviene de Producción
-      let parsedTechnicalSheet = undefined;
-      if (dto.origin_type === 'PRODUCCION' && dto.technical_sheet) {
-        parsedTechnicalSheet = typeof dto.technical_sheet === 'string'
-          ? JSON.parse(dto.technical_sheet)
-          : dto.technical_sheet;
-      }
-
       // 3. Crear y guardar el Producto Base
       const product = new this.productModel({
         ...dto,
-        technical_sheet: parsedTechnicalSheet,
         images: imageUrls.map((file: any) => file.url),
       });
 
@@ -296,19 +287,9 @@ export class ProductService {
         imageUrls = newImages.map((file: any) => file.url);
       }
 
-      // 🧵 Parseo de la Ficha Técnica para el update en caso se modifique
-      let parsedTechnicalSheet = product.technical_sheet;
-      if (dto.origin_type === 'PRODUCCION' && dto.technical_sheet) {
-        parsedTechnicalSheet = typeof dto.technical_sheet === 'string'
-          ? JSON.parse(dto.technical_sheet)
-          : dto.technical_sheet;
-      } else if (dto.origin_type === 'RETAIL') {
-        parsedTechnicalSheet = undefined; // Elimina la ficha si se cambia a Retail
-      }
-
       const updatedProduct = await this.productModel.findByIdAndUpdate(
         id,
-        { ...dto, images: imageUrls, technical_sheet: parsedTechnicalSheet },
+        { ...dto, images: imageUrls },
         { new: true },
       );
 

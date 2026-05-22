@@ -43,10 +43,8 @@ export const ROLE_PERMISSIONS = {
     'procurement:create',
     'procurement:update', // Confirmar, rechazar y recibir
 
-    // Producción
-    'production:view',
-    'production:create',
-    'production:update',
+
+
 
     // Mantengo los que ya tenías para órdenes y clientes
     'orders:view', 'orders:manage',

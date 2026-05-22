@@ -5,7 +5,6 @@ import { PurchaseOrder, PurchaseOrderDocument } from '../schema/purchaseOrder.sc
 import { Supplier, SupplierDocument } from 'src/modules/supplier/schema/supplier.schema';
 import { ProductVariant, ProductVariantDocument } from 'src/modules/product/schemas';
 import { OrderStatus } from '../enum/supply.constants';
-import { Workshop, WorkshopDocument } from 'src/modules/workshop/schema/workshop.schema';
 import { PrePurchaseOrder, PrePurchaseOrderDocument, SupplierQuote } from '../schema/prepurchaseOrder.schema';
 
 @Injectable()
@@ -13,7 +12,6 @@ export class RankingService {
   constructor(
     @InjectModel(PurchaseOrder.name) private poModel: Model<PurchaseOrderDocument>,
     @InjectModel(Supplier.name) private supplierModel: Model<SupplierDocument>,
-    @InjectModel(Workshop.name) private workshopModel: Model<WorkshopDocument>,
     @InjectModel(ProductVariant.name) private variantModel: Model<ProductVariantDocument>,
     @InjectModel(PrePurchaseOrder.name) private preOrderModel: Model<PrePurchaseOrderDocument>
   ) {}
@@ -22,21 +20,14 @@ export class RankingService {
    * ACTUALIZACIÓN DE H_p (Puntaje Histórico)
    * Se ejecuta automáticamente al recibir una orden.
    */
-  async updateRanking(agentId: string, onModel: string = 'Supplier'): Promise<void> {
-    const model = (onModel === 'Workshop' ? this.workshopModel : this.supplierModel) as Model<any>;
+  async updateRanking(agentId: string): Promise<void> {
+    const model = this.supplierModel;
     
     const query: any = {
       status: OrderStatus.RECEIVED,
-      quality_rating: { $exists: true } 
+      quality_rating: { $exists: true },
+      id_supplier: agentId
     };
-
-    if (onModel === 'Workshop') {
-      // Si es un taller, el campo en la OC podría llamarse diferente? 
-      // Por ahora asumo que id_supplier se usa para ambos en la OC (como agente externo)
-      query.id_supplier = agentId; 
-    } else {
-      query.id_supplier = agentId;
-    }
 
     const orders = await this.poModel.find(query).exec();
     if (orders.length === 0) return;
@@ -73,8 +64,8 @@ export class RankingService {
    * ALGORITMO DE DECISIÓN MULTICRITERIO
    * Calcula el puntaje final (0 a 1) para un proceso de compra específico.
    */
-  async calculateGlobalRanking(agentId: string, variantId: string, currentQuotePrice: number, onModel: string = 'Supplier'): Promise<number> {
-    const model = (onModel === 'Workshop' ? this.workshopModel : this.supplierModel) as Model<any>;
+  async calculateGlobalRanking(agentId: string, variantId: string, currentQuotePrice: number): Promise<number> {
+    const model = this.supplierModel;
     const agent = await model.findById(agentId);
     if (!agent) throw new NotFoundException('Agente no encontrado');
 
@@ -191,8 +182,7 @@ async rankQuotes(variantId: string, quotes: SupplierQuote[]): Promise<SupplierQu
         const score = await this.calculateGlobalRanking(
           quote.id_agent.toString(),
           variantId,
-          quote.total_amount / quote.items[0].quantity, // Precio unitario promedio
-          quote.onModel
+          quote.total_amount / quote.items[0].quantity // Precio unitario promedio
         );
         
         return {

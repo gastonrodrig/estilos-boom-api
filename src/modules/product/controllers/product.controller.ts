@@ -21,7 +21,7 @@ export class ProductController {
 
   @ApiOperation({ 
     summary: 'Crear un producto con detalles técnicos, variantes e imágenes',
-    description: 'Permite registrar un producto gestionando sus variantes con color objeto (name/hex). Soporta fichas técnicas si proviene de producción propia.' 
+    description: 'Permite registrar un producto gestionando sus variantes con color objeto (name/hex).' 
   })
   @Public()
   @Post()
@@ -49,14 +49,7 @@ export class ProductController {
         is_new_in: { type: 'boolean', example: true },
         
         // 🔄 NUEVO CAMPO EN SWAGGER UI: Tipo de Origen
-        origin_type: { type: 'string', enum: ['RETAIL', 'PRODUCCION'], example: 'PRODUCCION' },
-        
-        // 🧵 NUEVO CAMPO EN SWAGGER UI: Ficha técnica stringizada
-        technical_sheet: {
-          type: 'string',
-          description: 'JSON String de insumos (Solo si origin_type es PRODUCCION)',
-          example: '[{"name":"Elástico 2cm","quantity":2,"unit":"metros"}]'
-        },
+        origin_type: { type: 'string', enum: ['RETAIL'], example: 'RETAIL' },
         
         // 🎨 ACTUALIZADO EN SWAGGER UI: Nuevo formato de variantes con color estructurado
         variants: {
@@ -103,7 +96,6 @@ export class ProductController {
       is_best_seller: body.is_best_seller === 'true' || body.is_best_seller === true,
       is_new_in: body.is_new_in === 'true' || body.is_new_in === true,
       variants: body.variants, // El servicio se encargará de parsearlo/validarlo de forma interna
-      technical_sheet: body.technical_sheet || undefined,
       highlights: body.highlights ? parseJsonField(body.highlights) : [], 
       technical_details: body.technical_details ? parseJsonField(body.technical_details) : undefined,
     };
@@ -137,11 +129,7 @@ export class ProductController {
         id_category: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
         is_best_seller: { type: 'boolean' },
         is_new_in: { type: 'boolean' },
-        origin_type: { type: 'string', enum: ['RETAIL', 'PRODUCCION'] },
-        technical_sheet: {
-          type: 'string',
-          example: '[{"name":"Elástico 2cm","quantity":3,"unit":"metros"}]'
-        },
+        origin_type: { type: 'string', enum: ['RETAIL'] },
         variants: {
           type: 'string',
           description: 'Pega el JSON completo de las nuevas variantes con el formato estructurado'
@@ -167,7 +155,6 @@ export class ProductController {
       is_best_seller: body.is_best_seller === 'true' || body.is_best_seller === true,
       is_new_in: body.is_new_in === 'true' || body.is_new_in === true,
       variants: body.variants || undefined,
-      technical_sheet: body.technical_sheet || undefined,
     };
 
     return this.productService.update(id, updateDto, files);
