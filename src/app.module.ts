@@ -17,6 +17,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { WorkshopModule } from './modules/workshop/workshop.module';
+import { ProductionModule } from './modules/production/production.module';
 
 @Module({
   imports: [
@@ -57,7 +58,8 @@ import { WorkshopModule } from './modules/workshop/workshop.module';
     SupplyModule,
     InventoryModule,
     SupplierModule,
-    WorkshopModule
+    WorkshopModule,
+    ProductionModule
   ],
   providers: [
     {
