@@ -1,0 +1,121 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+
+// 1. Insumos (BOM) embebidos
+@Schema({ _id: false })
+export class ProductionSupplyItem {
+  @Prop({ required: true })
+  id: string; // ID en texto o referencia si tuvieras SupplySchema (usaremos string por simplicidad basado en el front)
+
+  @Prop({ required: true })
+  name: string;
+
+  @Prop({ required: true })
+  unitConsumption: number;
+
+  @Prop({ required: true })
+  totalQuantity: number;
+
+  @Prop()
+  theoreticalQuantity?: number;
+
+  @Prop({ required: true })
+  unit: string;
+}
+
+// 2. Ítems Base (Variantes a producir)
+@Schema({ _id: false })
+export class ProductionVariantItem {
+  @Prop({ type: Types.ObjectId, ref: 'ProductVariant', required: true })
+  id_variant: Types.ObjectId;
+
+  @Prop({ required: true, min: 1 })
+  quantity: number;
+
+  @Prop({ default: 0 })
+  unit_cost: number;
+}
+
+// 3. Cotizaciones de Talleres
+@Schema({ _id: false })
+export class WorkshopQuote {
+  @Prop({ type: Types.ObjectId, ref: 'Workshop', required: true })
+  id_agent: Types.ObjectId; // Taller
+
+  @Prop({ type: [ProductionVariantItem], default: [] })
+  items: ProductionVariantItem[];
+
+  @Prop({ default: 0 })
+  total_amount: number;
+
+  @Prop({ default: 'PENDIENTE', enum: ['PENDIENTE', 'SELECCIONADO', 'RECHAZADO'] })
+  quote_status: string;
+}
+
+export type ProductionOrderDocument = ProductionOrder & Document;
+
+@Schema({ _id: false })
+export class StatusHistoryItem {
+  @Prop({ required: true })
+  status: string;
+
+  @Prop({ default: Date.now })
+  date: Date;
+}
+
+@Schema({ _id: false })
+export class SubStateHistoryItem {
+  @Prop({ required: true })
+  step: string;
+
+  @Prop({ default: Date.now })
+  date: Date;
+}
+
+// 4. Esquema Principal
+@Schema({ timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }, collection: 'ProductionOrder' })
+export class ProductionOrder {
+  @Prop({ required: true, unique: true })
+  order_number: string; // OP-2026-001
+
+  @Prop({ required: true, unique: true })
+  pre_order_number: string; // OPP-M-2026-xxx
+
+  @Prop({ type: Types.ObjectId, ref: 'Worker', required: true })
+  id_worker: Types.ObjectId;
+
+  @Prop({ type: Types.ObjectId, ref: 'Workshop' })
+  id_winner_workshop?: Types.ObjectId;
+
+  @Prop({ type: [ProductionVariantItem], required: true })
+  base_items: ProductionVariantItem[];
+
+  @Prop({ type: [ProductionSupplyItem], default: [] })
+  supplies: ProductionSupplyItem[];
+
+  @Prop({ type: [WorkshopQuote], default: [] })
+  quotes: WorkshopQuote[];
+
+  @Prop({ default: 0 })
+  total_amount: number;
+
+  @Prop({
+    enum: ['CONTACTO_INICIAL', 'COMPARANDO', 'EN_PRODUCCION', 'CONTROL_CALIDAD', 'COMPLETADA', 'RECHAZADA'],
+    default: 'CONTACTO_INICIAL'
+  })
+  status: string;
+
+  @Prop({ type: [StatusHistoryItem], default: [] })
+  history: StatusHistoryItem[];
+
+  @Prop({ type: [SubStateHistoryItem], default: [] })
+  sub_states: SubStateHistoryItem[];
+
+  @Prop()
+  observations?: string;
+
+  @Prop()
+  delivery_date_estimated?: Date;
+}
+
+export const ProductionOrderSchema = SchemaFactory.createForClass(ProductionOrder);
