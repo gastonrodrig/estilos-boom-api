@@ -182,32 +182,33 @@ export class InventoryService {
     if (!transfer) throw new NotFoundException('Transferencia no encontrada');
     if (transfer.status !== 'PENDIENTE') throw new BadRequestException('Esta transferencia ya ha sido procesada');
 
-    // Procesamos cada artículo del lote de traslado
+    // 1. Procesamos cada artículo del lote para generar la auditoría en el Kardex (InventoryMovement)
     for (const item of transfer.items) {
-      // Phase A: Salida del Almacén Origen
+      // 📉 Fase A: Movimiento de SALIDA del Almacén de Origen
       await this.createMovement({
         id_variant: String(item.id_variant),
         id_warehouse: String(transfer.id_source_warehouse),
-        id_worker: receiverWorkerId,
+        id_worker: String(transfer.id_sender_worker), // El que creó el movimiento
         type: 'SALIDA',
         quantity: item.quantity,
         reason: `Despacho por transferencia interna código: ${transfer.code}`
       });
 
-      // Phase B: Entrada al Almacén Destino (Tienda)
+      // 📈 Fase B: Movimiento de ENTRADA al Almacén de Destino (Tienda)
       await this.createMovement({
         id_variant: String(item.id_variant),
         id_warehouse: String(transfer.id_target_warehouse),
-        id_worker: receiverWorkerId,
+        id_worker: receiverWorkerId, // El que está confirmando la recepción
         type: 'ENTRADA',
         quantity: item.quantity,
-        reason: `Recepción por transferencia interna código: ${transfer.code}`
+        reason: `Recepción y conformidad de transferencia interna código: ${transfer.code}`
       });
     }
 
-    // Actualizamos la cabecera de la guía de traslado
-    transfer.status = 'COMPLETADO';
-    transfer.id_receiver_worker = new Types.ObjectId(receiverWorkerId);
+    // 2. Actualizamos la cabecera del documento con las firmas de auditoría
+    transfer.status = 'CONFIRMADO'; // 👈 Alineado al nuevo estado visual
+    transfer.id_receiver_worker = new Types.ObjectId(receiverWorkerId); // 👈 Guarda quién confirmó
+    
     return await transfer.save();
   }
 
@@ -216,8 +217,20 @@ export class InventoryService {
       .find()
       .populate('id_source_warehouse', 'name')
       .populate('id_target_warehouse', 'name')
-      .populate('id_sender_worker', 'first_name last_name')
+      .populate('id_sender_worker', 'first_name last_name') // 👈 Trae nombre del creador
+      .populate('id_receiver_worker', 'first_name last_name') // 👈 Trae nombre del revisor
       .sort({ created_at: -1 })
       .exec();
   }
+  
+async findAllMovements() {
+  return this.movementModel
+    .find()
+    .sort({ created_at: -1 })
+    .populate('id_worker', 'first_name last_name')
+    .populate('id_warehouse', 'name')
+    .populate('id_purchase_order', 'order_number')
+    .exec();
+}
+
 }

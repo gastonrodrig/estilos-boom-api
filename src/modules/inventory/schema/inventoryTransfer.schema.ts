@@ -29,8 +29,18 @@ export class InventoryTransfer {
   })
   items: any[];
 
-  @Prop({ type: String, enum: ['PENDIENTE', 'COMPLETADO', 'RECHAZADO'], default: 'PENDIENTE' })
+  @Prop({ 
+    type: String, 
+    enum: ['PENDIENTE', 'CONFIRMADO', 'RECHAZADO', 'CON_INCIDENCIA', 'ANULADO'], 
+    default: 'PENDIENTE' 
+  })
   status: string;
+
+      @Prop({ type: String, default: 'TRANSFERENCIA' })
+    type: string;
+
+    @Prop({ type: String, default: 'Reposición de stock' })
+    reason: string;
 }
 
 export const InventoryTransferSchema = SchemaFactory.createForClass(InventoryTransfer);

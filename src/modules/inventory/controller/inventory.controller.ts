@@ -112,4 +112,12 @@ export class InventoryController {
   ) {
     return this.inventoryService.completeTransfer(id, receiverWorkerId);
   }
+
+  @ApiOperation({ summary: 'Listar todos los movimientos de inventario registrados' })
+  @Public()
+  @Get('movements')
+  @HttpCode(HttpStatus.OK)
+  findAll() {
+    return this.inventoryService.findAllMovements();
+  }
 }
