@@ -18,7 +18,7 @@ export class InventoryMovement {
   id_worker: Types.ObjectId;
 
   // Usamos el Enum para mayor seguridad
-  @Prop({ type: String, enum: ['TRANSFERENCIA', 'ENTRADA', 'SALIDA', 'AJUSTE', 'INCIDENCIA'], required: true })
+  @Prop({ type: String, enum: ['ENTRADA_COMPRA', 'SALIDA_VENTA', 'TRANSFERENCIA_SALIDA', 'TRANSFERENCIA_ENTRADA', 'AJUSTE', 'INCIDENCIA', 'DEVOLUCION'], required: true })
   type: string;
 
   @Prop({ required: true })

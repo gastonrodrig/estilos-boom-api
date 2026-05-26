@@ -67,7 +67,7 @@ export class InventoryController {
     id_variant: string;
     id_warehouse: string;
     id_worker: string;
-    type: 'ENTRADA' | 'SALIDA' | 'AJUSTE';
+    type: 'ENTRADA_COMPRA' | 'SALIDA_VENTA' | 'TRANSFERENCIA_SALIDA' | 'TRANSFERENCIA_ENTRADA' | 'AJUSTE' | 'INCIDENCIA' | 'DEVOLUCION';
     quantity: number;
     reason: string;
   }) {

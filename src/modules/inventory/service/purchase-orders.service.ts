@@ -103,7 +103,7 @@ export class PurchaseOrdersService {
         id_warehouse: String(centralWarehouse._id), // 👈 Destino por defecto
         id_worker: workerId || String(order.id_worker),
         id_purchase_order: String(order._id), // Vinculamos la OC para el Kardex
-        type: 'ENTRADA',
+        type: 'ENTRADA_COMPRA',
         quantity: Number(item.quantity),
         reason: `Ingreso de mercadería por recepción de OC: ${order.order_number}`
       });

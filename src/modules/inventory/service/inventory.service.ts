@@ -93,33 +93,39 @@ export class InventoryService {
     id_variant: string;
     id_warehouse: string;
     id_worker: string;
-    type: 'ENTRADA' | 'SALIDA' | 'AJUSTE';
+    type: 'ENTRADA_COMPRA' | 'SALIDA_VENTA' | 'TRANSFERENCIA_SALIDA' | 'TRANSFERENCIA_ENTRADA' | 'AJUSTE' | 'INCIDENCIA' | 'DEVOLUCION';
     quantity: number;
-    reason: string;
+    reason: string; // 👈 Recibe dinámicamente "Cambio de temporada", "Reposición urgente", etc.
     id_purchase_order?: string;
   }): Promise<InventoryMovement> {
     const wId = new Types.ObjectId(data.id_warehouse);
     const vId = new Types.ObjectId(data.id_variant);
 
-    // 1. Obtener registro de existencias actual en ese almacén
     const currentStockRecord = await this.getOrCreateStockRecord(wId, vId);
     const previousStock = currentStockRecord.stock;
 
-    // 2. Calcular nuevo stock físico
+    // 🤖 DEDUCCIÓN MATEMÁTICA AUTOMÁTICA
     let newStock = previousStock;
-    if (data.type === 'ENTRADA') newStock += data.quantity;
-    else if (data.type === 'SALIDA') newStock -= data.quantity;
-    else if (data.type === 'AJUSTE') newStock = data.quantity; // En ajuste, la cantidad recibida es el nuevo stock absoluto
+    
+    // 📥 Tipos que SUMAN stock de manera automática
+    if (data.type === 'ENTRADA_COMPRA' || data.type === 'DEVOLUCION' || data.type === 'TRANSFERENCIA_ENTRADA') {
+      newStock += data.quantity; 
+    } 
+    // 📤 Tipos que RESTAN stock de manera automática
+    else if (data.type === 'SALIDA_VENTA' || data.type === 'INCIDENCIA' || data.type === 'TRANSFERENCIA_SALIDA') {
+      newStock -= data.quantity; 
+    } 
+    else if (data.type === 'AJUSTE') {
+      newStock = data.quantity; 
+    }
 
     if (newStock < 0) {
       throw new BadRequestException(`Stock insuficiente en el almacén para realizar la operación.`);
     }
 
-    // 3. Actualizar la colección de existencias por almacén
     currentStockRecord.stock = newStock;
     await currentStockRecord.save();
 
-    // 4. Guardar la auditoría en el historial de movimientos
     const movement = new this.movementModel({
       id_variant: vId,
       id_warehouse: wId,
@@ -188,8 +194,8 @@ export class InventoryService {
       await this.createMovement({
         id_variant: String(item.id_variant),
         id_warehouse: String(transfer.id_source_warehouse),
-        id_worker: String(transfer.id_sender_worker), // El que creó el movimiento
-        type: 'SALIDA',
+        id_worker: String(transfer.id_sender_worker), 
+        type: 'TRANSFERENCIA_SALIDA', // 👈 ¡CORREGIDO! Restará del Almacén Central
         quantity: item.quantity,
         reason: `Despacho por transferencia interna código: ${transfer.code}`
       });
@@ -198,16 +204,16 @@ export class InventoryService {
       await this.createMovement({
         id_variant: String(item.id_variant),
         id_warehouse: String(transfer.id_target_warehouse),
-        id_worker: receiverWorkerId, // El que está confirmando la recepción
-        type: 'ENTRADA',
+        id_worker: receiverWorkerId, 
+        type: 'TRANSFERENCIA_ENTRADA', // 👈 ¡CORREGIDO! Sumará a la Tienda Principal
         quantity: item.quantity,
         reason: `Recepción y conformidad de transferencia interna código: ${transfer.code}`
       });
     }
 
     // 2. Actualizamos la cabecera del documento con las firmas de auditoría
-    transfer.status = 'CONFIRMADO'; // 👈 Alineado al nuevo estado visual
-    transfer.id_receiver_worker = new Types.ObjectId(receiverWorkerId); // 👈 Guarda quién confirmó
+    transfer.status = 'CONFIRMADO'; 
+    transfer.id_receiver_worker = new Types.ObjectId(receiverWorkerId); 
     
     return await transfer.save();
   }
