@@ -18,7 +18,8 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { WorkshopModule } from './modules/workshop/workshop.module';
 import { ProductionModule } from './modules/production/production.module';
-
+import { MercadoPagoModule } from './modules/mercadopago/mercadopago.module';
+import { PaymentManualModule } from './modules/payment-manual/payment-manual.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -59,7 +60,9 @@ import { ProductionModule } from './modules/production/production.module';
     InventoryModule,
     SupplierModule,
     WorkshopModule,
-    ProductionModule
+    ProductionModule,
+    MercadoPagoModule,
+    PaymentManualModule
   ],
   providers: [
     {
