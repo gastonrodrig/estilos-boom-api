@@ -257,9 +257,15 @@ export class ProductionService {
         } else if (unidades > totalUnidades) {
           botReply = `La cantidad no es correcta ❌\nDeben reportar máximo ${totalUnidades} unidades (las acordadas).\n¿Cuántas unidades llevan listas?`;
         } else if (unidades === totalUnidades) {
-          // Completaron todo — pasa directo a COMPLETED
+          // Completaron todo — guardar fecha de hoy y pasar a CONTROL_CALIDAD
+          const hoy = new Date();
+          const dd = hoy.getDate().toString().padStart(2, '0');
+          const mm = (hoy.getMonth() + 1).toString().padStart(2, '0');
           order.progress.unidadesListas = unidades;
+          order.progress.fechaProyectadaFin = `${dd}/${mm}/${hoy.getFullYear()}`;
           order.botState = 'COMPLETED';
+          order.status = 'CONTROL_CALIDAD';
+          order.history.push({ status: 'CONTROL_CALIDAD', date: new Date() });
           botReply = `Excelente 🎉\n¡Todas las ${totalUnidades} unidades completadas!\nEl equipo coordinará la recepción.\n¡Gracias!`;
         } else {
           // Entrega parcial — preguntar fecha de finalización
@@ -287,7 +293,15 @@ export class ProductionService {
 
       case 'AWAITING_ENTREGA':
         if (incomingText === 'SI') {
+          // Guardar la fecha real de confirmación
+          const hoyEntrega = new Date();
+          const ddE = hoyEntrega.getDate().toString().padStart(2, '0');
+          const mmE = (hoyEntrega.getMonth() + 1).toString().padStart(2, '0');
+          order.progress.fechaProyectadaFin = `${ddE}/${mmE}/${hoyEntrega.getFullYear()}`;
+          order.progress.unidadesListas = totalUnidades;
           order.botState = 'COMPLETED';
+          order.status = 'CONTROL_CALIDAD';
+          order.history.push({ status: 'CONTROL_CALIDAD', date: new Date() });
           botReply = `Excelente 🎉\n¡Todas las ${totalUnidades} unidades completadas!\nEl equipo coordinará la recepción.\n¡Gracias!`;
         } else if (incomingText === 'NO') {
           order.botState = 'AWAITING_UNIDADES_FINALES';
