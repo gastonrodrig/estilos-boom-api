@@ -1,15 +1,26 @@
 // src/modules/inventory/dto/create-inventory-movement.dto.ts
-import { IsMongoId, IsNotEmpty, IsNumber, IsEnum, IsString, IsOptional, Min } from 'class-validator';
-import { MovementType } from '../enum/supply.constants';
+import { IsMongoId, IsNotEmpty, IsNumber, IsEnum, Min } from 'class-validator';
 
 export class CreateInventoryMovementDto {
   @IsMongoId()
   @IsNotEmpty()
   id_variant: string;
 
-  @IsEnum(MovementType)
+  @IsMongoId()
   @IsNotEmpty()
-  type: MovementType; // ENTRADA, SALIDA, AJUSTE
+  id_warehouse: string;
+
+  @IsMongoId()
+  @IsNotEmpty()
+  id_document: string; // ID del WarehouseDocument que generó este movimiento
+
+  @IsMongoId()
+  @IsNotEmpty()
+  id_worker: string; // Almacenero que ejecuta la acción física
+
+  @IsEnum(['ENTRADA', 'SALIDA'])
+  @IsNotEmpty()
+  type: 'ENTRADA' | 'SALIDA';
 
   @IsNumber()
   @IsNotEmpty()
@@ -22,17 +33,9 @@ export class CreateInventoryMovementDto {
 
   @IsNumber()
   @IsNotEmpty()
-  new_stock: number; // En tu esquema anterior lo llamaste stock_resultante
+  new_stock: number;
 
-  @IsString()
+  @IsEnum(['COMPRA', 'VENTA', 'TRANSFERENCIA', 'AJUSTE'])
   @IsNotEmpty()
-  reason: string; // Ej: "Recepción OC-001" o "Ajuste por merma"
-
-  @IsMongoId()
-  @IsNotEmpty()
-  id_worker: string;
-
-  @IsMongoId()
-  @IsOptional()
-  id_purchase_order?: string; // Solo si el movimiento viene de una compra
+  reason: 'COMPRA' | 'VENTA' | 'TRANSFERENCIA' | 'AJUSTE';
 }

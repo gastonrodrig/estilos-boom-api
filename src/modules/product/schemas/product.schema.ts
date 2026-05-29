@@ -3,8 +3,6 @@ import { Document, Types } from 'mongoose';
 
 export type ProductDocument = Product & Document;
 
-
-
 @Schema({
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
   collection: 'Product',
@@ -38,19 +36,17 @@ export class Product {
   gender: string; 
 
   @Prop()
-  style_type: string; // Ej: 'CASUAL PREMIUM' (visto en tu imagen)
+  style_type: string; 
 
   @Prop()
-  composition: string; // Ej: '95% ALGODÓN, 5% ELASTANO'
+  composition: string; 
 
   @Prop()
-  season: string; // Ej: 'PRIMAVERA 2026'
+  season: string; 
 
-  // --- BENEFICIOS / BULLET POINTS (Los puntos rosas de la Imagen 1) ---
   @Prop({ type: [String] })
   highlights: string[]; 
 
-  // --- FLEXIBILIDAD EXTRA ---
   @Prop({ type: Map, of: String })
   technical_details: Map<string, string>;
 

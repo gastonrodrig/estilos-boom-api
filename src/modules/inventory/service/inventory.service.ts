@@ -1,47 +1,50 @@
 import { 
   Injectable, 
   NotFoundException, 
-  BadRequestException, 
-  InternalServerErrorException 
+  BadRequestException 
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { 
   InventoryMovement, InventoryMovementDocument,
-  Warehouse, WarehouseDocument,
-  WarehouseStock, WarehouseStockDocument,
-  InventoryTransfer, InventoryTransferDocument
 } from '../schema';
+import { Warehouse } from 'src/modules/warehouse/schema';
+
+import { WarehouseDocument as WarehouseMongoDocument, WarehouseDocumentDocument, WarehouseDocument } from 'src/modules/warehouse/schema/warehouse-document.schema';
+import { WarehouseStockDocument } from 'src/modules/warehouse/schema';
+import { WarehouseStock } from 'src/modules/warehouse/schema';
+
+import { CreateWarehouseDocumentDto } from 'src/modules/warehouse/dto/create-warehouse-document.dto';
 
 @Injectable()
 export class InventoryService {
   constructor(
     @InjectModel(InventoryMovement.name) 
-    private movementModel: Model<InventoryMovementDocument>,
+    private readonly movementModel: Model<InventoryMovementDocument>,
 
     @InjectModel(Warehouse.name) 
-    private warehouseModel: Model<WarehouseDocument>,
+    private readonly warehouseModel: Model<WarehouseMongoDocument>,
 
     @InjectModel(WarehouseStock.name) 
-    private stockModel: Model<WarehouseStockDocument>,
+    private readonly stockModel: Model<WarehouseStockDocument>,
 
-    @InjectModel(InventoryTransfer.name) 
-    private transferModel: Model<InventoryTransferDocument>,
+    @InjectModel(WarehouseDocument.name) 
+    private readonly warehouseDocModel: Model<WarehouseDocumentDocument>,
   ) {}
 
   // ==========================================
   // 1. MÓDULO: ALMACENES (WAREHOUSES)
   // ==========================================
 
-  /**
-   * Inicializa los almacenes por defecto si no existen (Se puede correr al levantar el sistema)
-   */
   async seedWarehouses() {
-    const defaults = ['ALMACEN_CENTRAL', 'TIENDA_PRINCIPAL'];
-    for (const name of defaults) {
-      const exists = await this.warehouseModel.findOne({ name });
+    const defaults = [
+      { name: 'ALMACEN_CENTRAL', code: 'ALM-CEN', address: 'Av. Principal 123', ubigeo: '150101', city: 'Lima', district: 'Lima' },
+      { name: 'TIENDA_PRINCIPAL', code: 'TND-PRI', address: 'Av. Larco 456', ubigeo: '150122', city: 'Lima', district: 'Miraflores' }
+    ];
+    for (const item of defaults) {
+      const exists = await this.warehouseModel.findOne({ code: item.code });
       if (!exists) {
-        await new this.warehouseModel({ name }).save();
+        await new this.warehouseModel(item).save();
       }
     }
     return this.warehouseModel.find().exec();
@@ -55,25 +58,22 @@ export class InventoryService {
   // 2. MÓDULO: CONTROL DE STOCK POR ALMACÉN
   // ==========================================
 
-  /**
-   * Obtiene o inicializa en 0 el stock de una variante en un almacén específico
-   */
   private async getOrCreateStockRecord(
     idWarehouse: Types.ObjectId, 
     idVariant: Types.ObjectId
   ): Promise<WarehouseStockDocument> {
-    
-    // ✅ CORRECCIÓN: Forzamos el tipado correcto en la búsqueda para que el compilador no salte
     const stockRecord = await this.stockModel.findOne({ 
-      id_warehouse: idWarehouse as any, 
-      id_variant: idVariant as any 
+      id_warehouse: idWarehouse, 
+      id_variant: idVariant 
     }).exec();
 
     if (!stockRecord) {
       const newStock = new this.stockModel({
         id_warehouse: idWarehouse,
         id_variant: idVariant,
-        stock: 0
+        physical_stock: 0,
+        reserved_stock: 0,
+        location_rack: 'Sin Asignar'
       });
       return await newStock.save();
     }
@@ -81,73 +81,61 @@ export class InventoryService {
     return stockRecord;
   }
 
-  /**
-   * Consulta el stock consolidado de una variante en todos los almacenes
-   */
   async getStockByVariant(variantId: string) {
     return this.stockModel
       .find({ id_variant: new Types.ObjectId(variantId) })
-      .populate('id_warehouse', 'name')
+      .populate('id_warehouse', 'name code')
       .exec();
   }
 
   // ==========================================
-  // 3. MÓDULO: MOVIMIENTOS DE INVENTARIO (KARDEX)
+  // 3. MÓDULO: HISTORIAL DE MOVIMIENTOS (KÁRDEX)
   // ==========================================
 
   /**
-   * Registrar un movimiento afectando directamente el stock del almacén indicado
+   * Método interno para aplicar los cambios matemáticos en el stock físico
    */
-  async createMovement(data: {
-    id_variant: string;
-    id_warehouse: string;
-    id_worker: string;
-    type: 'ENTRADA_COMPRA' | 'SALIDA_VENTA' | 'TRANSFERENCIA_SALIDA' | 'TRANSFERENCIA_ENTRADA' | 'AJUSTE' | 'INCIDENCIA' | 'DEVOLUCION';
-    quantity: number;
-    reason: string; // 👈 Recibe dinámicamente "Cambio de temporada", "Reposición urgente", etc.
-    id_purchase_order?: string;
-  }): Promise<InventoryMovement> {
-    const wId = new Types.ObjectId(data.id_warehouse);
-    const vId = new Types.ObjectId(data.id_variant);
+  private async applyStockChange(
+    idWarehouse: Types.ObjectId,
+    idVariant: Types.ObjectId,
+    idDocument: Types.ObjectId,
+    idWorker: Types.ObjectId,
+    type: 'ENTRADA' | 'SALIDA',
+    quantity: number,
+    reason: 'COMPRA' | 'VENTA' | 'TRANSFERENCIA' | 'AJUSTE'
+  ): Promise<InventoryMovementDocument> {
+    const stockRecord = await this.getOrCreateStockRecord(idWarehouse, idVariant);
+    const previousStock = stockRecord.physical_stock;
 
-    const currentStockRecord = await this.getOrCreateStockRecord(wId, vId);
-    const previousStock = currentStockRecord.stock;
-
-    // 🤖 DEDUCCIÓN MATEMÁTICA AUTOMÁTICA
     let newStock = previousStock;
-    
-    // 📥 Tipos que SUMAN stock de manera automática
-    if (data.type === 'ENTRADA_COMPRA' || data.type === 'DEVOLUCION' || data.type === 'TRANSFERENCIA_ENTRADA') {
-      newStock += data.quantity; 
-    } 
-    // 📤 Tipos que RESTAN stock de manera automática
-    else if (data.type === 'SALIDA_VENTA' || data.type === 'INCIDENCIA' || data.type === 'TRANSFERENCIA_SALIDA') {
-      newStock -= data.quantity; 
-    } 
-    else if (data.type === 'AJUSTE') {
-      newStock = data.quantity; 
+    if (type === 'ENTRADA') {
+      newStock += quantity;
+    } else {
+      newStock -= quantity;
     }
 
     if (newStock < 0) {
-      throw new BadRequestException(`Stock insuficiente en el almacén para realizar la operación.`);
+      throw new BadRequestException(`Stock insuficiente en el almacén para cumplir la operación.`);
     }
 
-    currentStockRecord.stock = newStock;
-    await currentStockRecord.save();
+    // Actualizamos el stock físico real
+    stockRecord.physical_stock = newStock;
+    await stockRecord.save();
 
+    // Grabamos la línea inmutable en el Kárdex
     const movement = new this.movementModel({
-      id_variant: vId,
-      id_warehouse: wId,
-      id_worker: new Types.ObjectId(data.id_worker),
-      id_purchase_order: data.id_purchase_order ? new Types.ObjectId(data.id_purchase_order) : undefined,
-      type: data.type,
-      quantity: data.quantity,
+      id_variant: idVariant,
+      id_warehouse: idWarehouse,
+      id_document: idDocument,
+      id_worker: idWorker,
+      type,
+      quantity,
       previous_stock: previousStock,
       new_stock: newStock,
-      reason: data.reason
+      reason
     });
 
-    return movement.save();
+    return await movement.save();
   }
 
   async getKardexByVariant(variantId: string) {
@@ -155,102 +143,120 @@ export class InventoryService {
       .find({ id_variant: new Types.ObjectId(variantId) })
       .sort({ created_at: -1 })
       .populate('id_worker', 'first_name last_name')
-      .populate('id_warehouse', 'name')
-      .populate('id_purchase_order', 'order_number')
+      .populate('id_warehouse', 'name code')
+      .populate({
+        path: 'id_document',
+        select: 'document_number type'
+      })
+      .exec();
+  }
+
+  async findAllMovements() {
+    return this.movementModel
+      .find()
+      .sort({ created_at: -1 })
+      .populate('id_worker', 'first_name last_name')
+      .populate('id_warehouse', 'name code')
       .exec();
   }
 
   // ==========================================
-  // 4. MÓDULO: TRANSFERENCIAS INTERNAS (ALMACÉN ➡️ TIENDA)
+  // 4. MÓDULO: GESTIÓN DE DOCUMENTOS DE ALMACÉN
   // ==========================================
 
   /**
-   * Crea una transferencia en estado PENDIENTE
+   * Crea cualquier documento de almacén (Compra, Venta, Transferencia, Ajuste) en estado PENDIENTE
    */
-  async createTransfer(dto: {
-    code: string;
-    id_source_warehouse: string;
-    id_target_warehouse: string;
-    id_sender_worker: string;
-    items: { id_variant: string; quantity: number }[];
-  }) {
-    const newTransfer = new this.transferModel({
-      code: dto.code,
-      id_source_warehouse: new Types.ObjectId(dto.id_source_warehouse),
-      id_target_warehouse: new Types.ObjectId(dto.id_target_warehouse),
+  async createWarehouseDocument(dto: CreateWarehouseDocumentDto) {
+    const newDoc = new this.warehouseDocModel({
+      document_number: dto.document_number,
+      type: dto.type,
+      status: dto.status || 'PENDIENTE',
+      id_source_warehouse: dto.id_source_warehouse ? new Types.ObjectId(dto.id_source_warehouse) : null,
+      id_target_warehouse: dto.id_target_warehouse ? new Types.ObjectId(dto.id_target_warehouse) : null,
+      id_origin_doc: dto.id_origin_doc ? new Types.ObjectId(dto.id_origin_doc) : null,
       id_sender_worker: new Types.ObjectId(dto.id_sender_worker),
-      items: dto.items.map(i => ({
-        id_variant: new Types.ObjectId(i.id_variant),
-        quantity: i.quantity
-      })),
-      status: 'PENDIENTE'
+      notes: dto.notes,
+      items: dto.items.map(item => ({
+        id_variant: new Types.ObjectId(item.id_variant),
+        quantity_expected: item.quantity_expected,
+        quantity_received: item.quantity_received || 0,
+        incidence_note: item.incidence_note || ''
+      }))
     });
 
-    return await newTransfer.save();
+    return await newDoc.save();
   }
 
   /**
-   * Procesa y completa de forma atómica una transferencia interna restando del origen y sumando al destino
+   * El almacenero ejecuta la acción física y da la conformidad del documento.
+   * Aquí ocurre el impacto real en el stock físico y kárdex.
    */
-  async completeTransfer(transferId: string, receiverWorkerId: string) {
-    const transfer = await this.transferModel.findById(transferId);
-    if (!transfer) throw new NotFoundException('Transferencia no encontrada');
-    if (transfer.status !== 'PENDIENTE') throw new BadRequestException('Esta transferencia ya ha sido procesada');
-
-    // 1. Procesamos cada artículo del lote para generar la auditoría en el Kardex (InventoryMovement)
-    for (const item of transfer.items) {
-      // 📉 Fase A: Movimiento de SALIDA del Almacén de Origen
-      await this.createMovement({
-        id_variant: String(item.id_variant),
-        id_warehouse: String(transfer.id_source_warehouse),
-        id_worker: String(transfer.id_sender_worker), 
-        type: 'TRANSFERENCIA_SALIDA', // 👈 ¡CORREGIDO! Restará del Almacén Central
-        quantity: item.quantity,
-        reason: `Despacho por transferencia interna código: ${transfer.code}`
-      });
-
-      // 📈 Fase B: Movimiento de ENTRADA al Almacén de Destino (Tienda)
-      await this.createMovement({
-        id_variant: String(item.id_variant),
-        id_warehouse: String(transfer.id_target_warehouse),
-        id_worker: receiverWorkerId, 
-        type: 'TRANSFERENCIA_ENTRADA', // 👈 ¡CORREGIDO! Sumará a la Tienda Principal
-        quantity: item.quantity,
-        reason: `Recepción y conformidad de transferencia interna código: ${transfer.code}`
-      });
+  async processWarehouseDocument(documentId: string, workerId: string, itemsEvaluated: { id_variant: string, quantity_received: number, incidence_note?: string }[]) {
+    const doc = await this.warehouseDocModel.findById(documentId);
+    if (!doc) throw new NotFoundException('Documento de almacén no encontrado.');
+    if (doc.status === 'COMPLETADO' || doc.status === 'CANCELADO') {
+      throw new BadRequestException('Este documento ya ha sido procesada o cancelado.');
     }
 
-    // 2. Actualizamos la cabecera del documento con las firmas de auditoría
-    transfer.status = 'CONFIRMADO'; 
-    transfer.id_receiver_worker = new Types.ObjectId(receiverWorkerId); 
+    const idWorker = new Types.ObjectId(workerId);
+
+    // Actualizar las cantidades reales contadas por el almacenero
+    for (const evalItem of itemsEvaluated) {
+      const docItem = doc.items.find(i => String(i.id_variant) === evalItem.id_variant);
+      if (docItem) {
+        docItem.quantity_received = evalItem.quantity_received;
+        docItem.incidence_note = evalItem.incidence_note || '';
+      }
+    }
+
+    // DISPARAR LOS MOVIMIENTOS SEGÚN EL TIPO DE DOCUMENTO UNIFICADO
+    for (const item of doc.items) {
+      const finalQty = item.quantity_received; // Trabajamos sobre lo que el almacenero realmente contó
+
+      if (finalQty <= 0) continue; 
+
+      // Caso A: Es una transferencia entre sedes propias
+      if (doc.type === 'TRANSFERENCIA') {
+        // 1. Despacho (Salida del origen)
+        await this.applyStockChange(doc.id_source_warehouse, item.id_variant, doc._id as Types.ObjectId, doc.id_sender_worker, 'SALIDA', finalQty, 'TRANSFERENCIA');
+        // 2. Recepción (Entrada al destino)
+        await this.applyStockChange(doc.id_target_warehouse, item.id_variant, doc._id as Types.ObjectId, idWorker, 'ENTRADA', finalQty, 'TRANSFERENCIA');
+      } 
+      
+      // Caso B: Es un ingreso por compra a proveedor
+      else if (doc.type === 'INGRESO_COMPRA') {
+        await this.applyStockChange(doc.id_target_warehouse, item.id_variant, doc._id as Types.ObjectId, idWorker, 'ENTRADA', finalQty, 'COMPRA');
+      } 
+      
+      // Caso C: Es una salida por venta a un cliente
+      else if (doc.type === 'SALIDA_VENTA') {
+        await this.applyStockChange(doc.id_source_warehouse, item.id_variant, doc._id as Types.ObjectId, doc.id_sender_worker, 'SALIDA', finalQty, 'VENTA');
+      } 
+      
+      // Caso D: Ajuste manual de inventario (Merma / Inventario físico)
+      else if (doc.type === 'AJUSTE') {
+        // Si el ajuste resta inventario, se manda como SALIDA. Si recupera stock, se manda como ENTRADA.
+        // Asumiremos que el ajuste regulariza por salida en este ejemplo operativo básico.
+        await this.applyStockChange(doc.id_source_warehouse, item.id_variant, doc._id as Types.ObjectId, idWorker, 'SALIDA', finalQty, 'AJUSTE');
+      }
+    }
+
+    // Cerrar el documento administrativamente
+    doc.status = 'COMPLETADO';
+    doc.id_receiver_worker = idWorker;
     
-    return await transfer.save();
+    return await doc.save();
   }
 
-  async findAllTransfers() {
-    return this.transferModel
+  async findAllWarehouseDocuments() {
+    return this.warehouseDocModel
       .find()
-      .populate('id_source_warehouse', 'name')
-      .populate('id_target_warehouse', 'name')
+      .populate('id_source_warehouse', 'name code')
+      .populate('id_target_warehouse', 'name code')
       .populate('id_sender_worker', 'first_name last_name')
       .populate('id_receiver_worker', 'first_name last_name')
-      // 🚀 ADICIÓN CLAVE: Trae la información de la variante y el producto para el PDF
-      .populate({
-        path: 'items.id_variant',
-        populate: { path: 'id_product', select: 'name' } 
-      })
       .sort({ created_at: -1 })
       .exec();
   }
-  
-async findAllMovements() {
-  return this.movementModel
-    .find()
-    .sort({ created_at: -1 })
-    .populate('id_worker', 'first_name last_name')
-    .populate('id_warehouse', 'name')
-    .populate('id_purchase_order', 'order_number')
-    .exec();
-}
-
 }
