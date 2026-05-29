@@ -68,17 +68,24 @@ export class PurchaseOrdersController {
     return this.poService.startQualityCheck(purchaseOrderId, preOrderId);
   }
 @Patch(':id/approve')
-@Public()
-async approve(
-  @Param('id') id: string,
-  @Body() body: { quality_rating: number; workerId: string }
-) {
-  return this.poService.approveAndInventory(
-    id, 
-    body.quality_rating, 
-    body.workerId
-  );
-}
+  @Public()
+  async approve(
+    @Param('id') id: string,
+    @Body() body: { 
+      quality_rating: number; 
+      workerId: string; 
+      observations?: string; // 👈 Nuevo
+      qty_incidences?: number; // 👈 Nuevo
+    }
+  ) {
+    return this.poService.approveAndInventory(
+      id, 
+      body.quality_rating, 
+      body.workerId,
+      body.observations,
+      body.qty_incidences
+    );
+  }
 @Patch(':id/extend')
 @Public() // O el decorador de seguridad que estés usando en URP
 async extendDeliveryDate(

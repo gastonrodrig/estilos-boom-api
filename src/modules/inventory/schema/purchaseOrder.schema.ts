@@ -56,6 +56,12 @@ export class PurchaseOrder {
 
   @Prop()
   shipping_cost: number; // Costo de envío asociado a esta orden, opcional
+
+  @Prop({ default: 0 })
+  qty_incidences: number; // 👈 Guarda el acumulado de prendas defectuosas/mermas de la orden
+
+  @Prop()
+  quality_observations: string; // 👈 Almacena las notas del control de calidad ("Prendas descosidas", etc.)
 }
 
 export const PurchaseOrderSchema = SchemaFactory.createForClass(PurchaseOrder);

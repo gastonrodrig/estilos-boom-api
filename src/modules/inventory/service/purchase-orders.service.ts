@@ -77,11 +77,9 @@ export class PurchaseOrdersService {
 
   // 3. Función Privada: Procesar la entrada de mercadería al stock y Kardex
  private async handleStockReceipt(order: PurchaseOrderDocument, workerId: string, session: ClientSession) {
-    // 1. Buscamos el ID único del Almacén Central en la base de datos
-    // Usamos la misma sesión de la transacción para garantizar lectura consistente
     const centralWarehouse = await this.connection.model('Warehouse').findOne(
       { name: 'ALMACEN_CENTRAL' }
-    ).session(session).exec() as { _id: any } | null; // 👈 Agregamos este "as" para guiar a TypeScript
+    ).session(session).exec() as { _id: any } | null;
 
     if (!centralWarehouse) {
       throw new InternalServerErrorException(
@@ -89,34 +87,46 @@ export class PurchaseOrdersService {
       );
     }
 
-    // 2. Iteramos los artículos de la Orden de Compra para inyectar stock
+    // 🤖 REPARTO EQUITATIVO O PROPORCIONAL DE INCIDENCIAS (Opcional para mitigación de mermas)
+    // Si hay mermas generales en la orden, descontamos de forma controlada del ingreso real de stock
+    let remainingIncidences = order.qty_incidences || 0;
+
     for (const item of order.items) {
       const variantId = String(item.id_variant);
-
-      // 🚀 DELEGAMOS TODO EL TRABAJO PESADO AL INVENTORY SERVICE
-      // Este método ya se encarga de:
-      //   - Obtener o inicializar el stock de la variante en ese almacén.
-      //   - Calcular el previous_stock y new_stock exactos.
-      //   - Actualizar WarehouseStock y guardar la auditoría en InventoryMovement.
-      await this.inventoryService.createMovement({
-        id_variant: variantId,
-        id_warehouse: String(centralWarehouse._id), // 👈 Destino por defecto
-        id_worker: workerId || String(order.id_worker),
-        id_purchase_order: String(order._id), // Vinculamos la OC para el Kardex
-        type: 'ENTRADA_COMPRA',
-        quantity: Number(item.quantity),
-        reason: `Ingreso de mercadería por recepción de OC: ${order.order_number}`
-      });
+      const totalOrderedQty = Number(item.quantity);
       
-      // 💡 NOTA PARA TU TESIS:
-      // Si aún necesitas actualizar un stock global acumulado en variantModel por compatibilidad 
-      // con tu catálogo del front, puedes mantener un $inc aquí, de lo contrario puedes borrarlo
-      // y hacer que el front lea directamente de WarehouseStock.
-      await this.variantModel.findByIdAndUpdate(
-        variantId,
-        { $inc: { physical_stock: Number(item.quantity), stock: Number(item.quantity) } },
-        { session }
-      );
+      // Calculamos cuántas unidades de esta variante ingresan conformes
+      let netConformingQty = totalOrderedQty;
+      
+      if (remainingIncidences > 0) {
+        if (remainingIncidences >= netConformingQty) {
+          remainingIncidences -= netConformingQty;
+          netConformingQty = 0; // Toda la variante llegó dañada
+        } else {
+          netConformingQty -= remainingIncidences;
+          remainingIncidences = 0;
+        }
+      }
+
+      // 🚀 INYECCIÓN AL KARDEX (Solo de las unidades físicas aptas para la venta)
+      if (netConformingQty > 0) {
+        await this.inventoryService.createMovement({
+          id_variant: variantId,
+          id_warehouse: String(centralWarehouse._id),
+          id_worker: workerId || String(order.id_worker),
+          id_purchase_order: String(order._id),
+          type: 'ENTRADA_COMPRA',
+          quantity: netConformingQty,
+          reason: `Ingreso neto conforme por recepción de OC: ${order.order_number}. (Ordenadas: ${totalOrderedQty}, Mermas auditadas en control: ${totalOrderedQty - netConformingQty})`
+        });
+        
+        // Sincronización del catálogo global (Stock físico real vendible)
+        await this.variantModel.findByIdAndUpdate(
+          variantId,
+          { $inc: { physical_stock: netConformingQty, stock: netConformingQty } },
+          { session }
+        );
+      }
     }
   }
 
@@ -196,61 +206,63 @@ async extendDeliveryDate(purchaseOrderId: string, newDate: string, reason: strin
 }
 
 async approveAndInventory(
-  purchaseOrderId: string, 
-  qualityRating: number, 
-  workerId: string
-): Promise<any> {
-  const session = await this.connection.startSession();
-  session.startTransaction();
+    purchaseOrderId: string, 
+    qualityRating: number, 
+    workerId: string,
+    observations?: string,    // 👈 Recibido de la UI
+    qtyIncidences?: number    // 👈 Recibido de la UI
+  ): Promise<any> {
+    const session = await this.connection.startSession();
+    session.startTransaction();
 
-  try {
-    // 1. Buscamos la Orden de Compra (OC)
-    const order = await this.poModel.findById(purchaseOrderId);
-    if (!order) throw new NotFoundException('Orden de Compra no encontrada');
-    if (order.status === 'COMPLETADA') throw new BadRequestException('Esta orden ya fue ingresada al inventario.');
+    try {
+      // 1. Buscamos la Orden de Compra (OC)
+      const order = await this.poModel.findById(purchaseOrderId);
+      if (!order) throw new NotFoundException('Orden de Compra no encontrada');
+      if (order.status === 'COMPLETADA') throw new BadRequestException('Esta orden ya fue ingresada al inventario.');
 
-    // 2. PROCESAR STOCK Y KARDEX
-    // Reutilizamos tu función privada handleStockReceipt
-    await this.handleStockReceipt(order, workerId, session);
+      // 2. ACTUALIZAMOS AUDITORÍA DE CALIDAD EN LA OC
+      order.status = 'COMPLETADA'; 
+      order.quality_rating = qualityRating;
+      order.delivery_date_actual = new Date();
+      order.qty_incidences = qtyIncidences || 0; // 👈 Persistimos la merma
+      order.quality_observations = observations || 'Sin observaciones adicionales.'; // 👈 Persistimos la nota
+      
+      const savedOrder = await order.save({ session });
 
-    // 3. ACTUALIZAR ESTADO DE LA OC
-    order.status = 'COMPLETADA'; // 👈 Sincronizado con tu esquema
-    order.quality_rating = qualityRating;
-    order.delivery_date_actual = new Date();
-    const savedOrder = await order.save({ session });
+      // 3. PROCESAR STOCK Y KARDEX (Enviando las mermas deducidas)
+      await this.handleStockReceipt(savedOrder, workerId, session);
 
-    // 4. ACTUALIZAR ESTADO DE LA PRE-ORDEN (OPP)
-    // Buscamos la OPP que tiene vinculada esta OC
-    const updatedPreOrder = await this.preOrderModel.findOneAndUpdate(
-      { id_purchase_order: new Types.ObjectId(purchaseOrderId) }, // 🔥 Casteo explícito
-      { status: 'COMPLETADA' },
-      { session, new: true }
-    )
-    .populate('id_purchase_order')
-    .populate('id_worker')
-    .populate('quotes.id_agent');
+      // 4. ACTUALIZAR ESTADO DE LA PRE-ORDEN (OPP)
+      const updatedPreOrder = await this.preOrderModel.findOneAndUpdate(
+        { id_purchase_order: new Types.ObjectId(purchaseOrderId) },
+        { status: 'COMPLETADA' },
+        { session, new: true }
+      )
+      .populate('id_purchase_order')
+      .populate('id_worker')
+      .populate('quotes.id_agent');
 
-    if (!updatedPreOrder) {
-        // Si no la encuentra, lanzamos error para que la transacción aborte y no haya inconsistencia
-        throw new BadRequestException('No se pudo encontrar la Pre-Orden vinculada para cerrar el flujo.');
+      if (!updatedPreOrder) {
+          throw new BadRequestException('No se pudo encontrar la Pre-Orden vinculada para cerrar el flujo.');
+      }
+
+      // 5. FINALIZAR TRANSACCIÓN ATÓMICA
+      await session.commitTransaction();
+      session.endSession();
+
+      // 6. ACTUALIZAR RANKING DEL PROVEEDOR
+      await this.rankingService.updateRanking(order.id_supplier.toString());
+
+      return {
+        message: 'Mercadería integrada con éxito, mermas auditadas y ranking actualizado.',
+        prePurchaseOrder: updatedPreOrder
+      };
+
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      throw error;
     }
-
-    // 5. FINALIZAR TRANSACCIÓN
-    await session.commitTransaction();
-    session.endSession();
-
-    // 6. ACTUALIZAR RANKING
-    await this.rankingService.updateRanking(order.id_supplier.toString());
-
-    return {
-      message: 'Mercadería integrada con éxito y ranking actualizado.',
-      prePurchaseOrder: updatedPreOrder
-    };
-
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    throw error;
   }
-}
 }

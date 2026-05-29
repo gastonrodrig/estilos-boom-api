@@ -58,17 +58,26 @@ export class InventoryService {
   /**
    * Obtiene o inicializa en 0 el stock de una variante en un almacén específico
    */
-  private async getOrCreateStockRecord(idWarehouse: Types.ObjectId, idVariant: Types.ObjectId): Promise<WarehouseStockDocument> {
-    let stockRecord = await this.stockModel.findOne({ id_warehouse: idWarehouse, id_variant: idVariant });
+  private async getOrCreateStockRecord(
+    idWarehouse: Types.ObjectId, 
+    idVariant: Types.ObjectId
+  ): Promise<WarehouseStockDocument> {
     
+    // ✅ CORRECCIÓN: Forzamos el tipado correcto en la búsqueda para que el compilador no salte
+    const stockRecord = await this.stockModel.findOne({ 
+      id_warehouse: idWarehouse as any, 
+      id_variant: idVariant as any 
+    }).exec();
+
     if (!stockRecord) {
-      stockRecord = new this.stockModel({
+      const newStock = new this.stockModel({
         id_warehouse: idWarehouse,
         id_variant: idVariant,
         stock: 0
       });
-      await stockRecord.save();
+      return await newStock.save();
     }
+    
     return stockRecord;
   }
 
@@ -223,8 +232,13 @@ export class InventoryService {
       .find()
       .populate('id_source_warehouse', 'name')
       .populate('id_target_warehouse', 'name')
-      .populate('id_sender_worker', 'first_name last_name') // 👈 Trae nombre del creador
-      .populate('id_receiver_worker', 'first_name last_name') // 👈 Trae nombre del revisor
+      .populate('id_sender_worker', 'first_name last_name')
+      .populate('id_receiver_worker', 'first_name last_name')
+      // 🚀 ADICIÓN CLAVE: Trae la información de la variante y el producto para el PDF
+      .populate({
+        path: 'items.id_variant',
+        populate: { path: 'id_product', select: 'name' } 
+      })
       .sort({ created_at: -1 })
       .exec();
   }
