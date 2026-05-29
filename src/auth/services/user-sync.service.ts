@@ -124,35 +124,23 @@ export class UserSyncService {
       // Leer usuario final con client y company usando los ids reales del esquema
       const finalUser = await this.userModel.findById(user._id).lean();
 
-      // 🛡️ Búsqueda Dinámica de Permisos con Fallback Seguro
-      let permissions: string[] = [];
-      try {
-        const roleFromDb = await this.roleModel.findOne({ name: finalUser?.role }).lean();
-        if (roleFromDb && roleFromDb.permissions && roleFromDb.permissions.length > 0) {
-          permissions = roleFromDb.permissions as string[];
-        } else {
-          // Fallback a constantes si no existe en DB o está vacío
-          permissions = ROLE_PERMISSIONS[finalUser?.role as keyof typeof ROLE_PERMISSIONS] || [];
-        }
-      } catch (error) {
-        // Fallback en caso de error de conexión o consulta
-        permissions = ROLE_PERMISSIONS[finalUser?.role as keyof typeof ROLE_PERMISSIONS] || [];
-      }
+      // 🛡️ Búsqueda Dinámica de Permisos con Fallback Seguro (DESACTIVADO FASE 2A)
+      // let permissions: string[] = [];
+      // try { ... } catch { ... }
       const client = await this.clientModel.findOne({ id_user: user._id }).lean();
       const clientCompany = client
         ? await this.clientCompanyModel.findOne({ id_client: client._id }).lean()
         : null;
 
-      // Asignar rol al token
+      // Asignar rol al token (Permissions quitados en Fase 2A)
       await admin.auth().setCustomUserClaims(uid, {
         role: finalUser?.role,
-        permissions: permissions,
       });
 
       return {
         user: {
           ...finalUser,
-          permissions,
+          // permissions, // Oculto en Fase 2A
           client: client
             ? {
               ...client,
