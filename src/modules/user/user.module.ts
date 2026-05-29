@@ -3,7 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { BullModule } from '@nestjs/bullmq';
 import { ClientService } from './services/client.service';
 import { WorkerService } from './services/worker.service';
-import { RoleManagementService } from './services/role-management.service';
+import { UserManagementService } from './services/user-management.service';
 import { ClientController } from './controllers/client.controller';
 import { WorkerController } from './controllers/worker.controller';
 import { UserController } from './controllers/user.controller';
@@ -35,7 +35,7 @@ import { CartModule } from '../cart/cart.module';
     CartModule,
   ],
   controllers: [ClientController, WorkerController, UserController],
-  providers: [ClientService, WorkerService, RoleManagementService],
-  exports: [ClientService, WorkerService, RoleManagementService, MongooseModule],
+  providers: [ClientService, WorkerService, UserManagementService],
+  exports: [ClientService, WorkerService, UserManagementService, MongooseModule],
 })
 export class UserModule { }

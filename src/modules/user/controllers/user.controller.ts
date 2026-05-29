@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Body, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { RoleManagementService } from '../services/role-management.service';
+import { UserManagementService } from '../services/user-management.service';
 import { Public, AuthRoles } from 'src/auth/decorators';
 import { Roles } from 'src/core/constants/app.constants';
 
@@ -8,7 +8,7 @@ import { Roles } from 'src/core/constants/app.constants';
 @Controller('client/users')
 export class UserController {
     constructor(
-        private readonly roleService: RoleManagementService
+        private readonly roleService: UserManagementService
     ) { }
 
     @Public()

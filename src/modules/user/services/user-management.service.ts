@@ -4,7 +4,7 @@ import { Model } from 'mongoose';
 import { User, UserDocument } from '../schemas/user.schema';
 
 @Injectable()
-export class RoleManagementService {
+export class UserManagementService {
     constructor(
         @InjectModel(User.name) private userModel: Model<UserDocument>
     ) { }
