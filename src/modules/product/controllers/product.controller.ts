@@ -13,6 +13,21 @@ import { Public } from 'src/auth/decorators';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { CreateVariantDto } from '../dto/create-variant.dto';
 
+const parseJsonField = (field: any) => {
+  if (!field || typeof field !== 'string') return field;
+  if (field.startsWith('[') || field.startsWith('{')) {
+    try {
+      return JSON.parse(field);
+    } catch (e) {
+      return [field]; 
+    }
+  }
+  if (field.includes(',')) {
+    return field.split(',').map(item => item.trim());
+  }
+  return [field];
+};
+
 @ApiTags('Productos (Products)')
 @ApiBearerAuth('firebase-auth')
 @Controller('products')
@@ -74,21 +89,6 @@ export class ProductController {
       throw new BadRequestException('Debes subir al menos una imagen.');
     }
 
-    const parseJsonField = (field: any) => {
-      if (!field || typeof field !== 'string') return field;
-      if (field.startsWith('[') || field.startsWith('{')) {
-        try {
-          return JSON.parse(field);
-        } catch (e) {
-          return [field]; 
-        }
-      }
-      if (field.includes(',')) {
-        return field.split(',').map(item => item.trim());
-      }
-      return [field];
-    };
-
     // TRANSFORMACIÓN MANUAL Y CONTROLADA DEL BODY MULTIPART
     const createProductDto: CreateProductDto = {
       ...body,
@@ -98,6 +98,7 @@ export class ProductController {
       variants: body.variants, // El servicio se encargará de parsearlo/validarlo de forma interna
       highlights: body.highlights ? parseJsonField(body.highlights) : [], 
       technical_details: body.technical_details ? parseJsonField(body.technical_details) : undefined,
+      technical_sheet: body.technical_sheet ? parseJsonField(body.technical_sheet) : undefined,
     };
 
     return this.productService.create(createProductDto, files);
@@ -155,6 +156,7 @@ export class ProductController {
       is_best_seller: body.is_best_seller === 'true' || body.is_best_seller === true,
       is_new_in: body.is_new_in === 'true' || body.is_new_in === true,
       variants: body.variants || undefined,
+      technical_sheet: body.technical_sheet ? parseJsonField(body.technical_sheet) : undefined,
     };
 
     return this.productService.update(id, updateDto, files);

@@ -1,10 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Request, Response } from 'express'; 
 import { ProductionService } from '../service/production.service';
 import { CreateProductionOrderDto } from '../dto/create-production-order.dto';
 import { UpdateWorkshopQuoteDto } from '../dto/update-workshop-quote.dto';
 import { ConfirmWorkshopDto } from '../dto/confirm-workshop.dto';
 import { UpdateProductionStatusDto } from '../dto/update-status.dto';
+import { AuthRoles, Public } from 'src/auth/decorators';
+
 
 @ApiTags('Production Orders')
 @Controller('production-orders')
@@ -12,24 +15,28 @@ export class ProductionController {
   constructor(private readonly productionService: ProductionService) {}
 
   @Post()
+  @Public()
   @ApiOperation({ summary: 'Crear una nueva orden de producción (Estado: CONTACTO_INICIAL)' })
   create(@Body() createDto: CreateProductionOrderDto) {
     return this.productionService.create(createDto);
   }
 
   @Get()
+   @Public()
   @ApiOperation({ summary: 'Listar todas las órdenes de producción' })
   findAll() {
     return this.productionService.findAll();
   }
 
   @Get(':id')
+   @Public()
   @ApiOperation({ summary: 'Obtener el detalle de una orden de producción' })
   findOne(@Param('id') id: string) {
     return this.productionService.findOne(id);
   }
 
   @Patch(':id/quote')
+   @Public()
   @ApiOperation({ summary: 'Registrar la cotización de un taller' })
   updateQuote(
     @Param('id') id: string,
@@ -39,6 +46,7 @@ export class ProductionController {
   }
 
   @Patch(':id/confirm')
+   @Public()
   @ApiOperation({ summary: 'Confirmar el taller ganador (Avanza a EN_PRODUCCION)' })
   confirmWorkshop(
     @Param('id') id: string,
@@ -48,6 +56,7 @@ export class ProductionController {
   }
 
   @Patch(':id/status')
+   @Public()
   @ApiOperation({ summary: 'Actualizar el estado de la orden (Ej. CONTROL_CALIDAD, COMPLETADA)' })
   updateStatus(
     @Param('id') id: string,
@@ -57,11 +66,25 @@ export class ProductionController {
   }
 
   @Patch(':id/substate')
+   @Public()
   @ApiOperation({ summary: 'Actualizar sub-estado en taller (Ej. CORTE, CONFECCION)' })
   updateSubState(
     @Param('id') id: string,
     @Body() body: { step: string }
   ) {
     return this.productionService.updateSubState(id, body.step);
+  }
+
+  // ========================================================
+  // 🔥 WEBHOOK DE TWILIO WHATSAPP
+  // ========================================================
+  @Post('whatsapp/webhook')
+   @Public()
+  @ApiOperation({ summary: 'Webhook para recibir mensajes de Twilio WhatsApp Sandbox' })
+  async handleTwilioWebhook(@Req() req: Request, @Res() res: Response) {
+    const twimlResponse = await this.productionService.handleWhatsAppWebhook(req.body);
+    
+    res.setHeader('Content-Type', 'text/xml');
+    res.status(200).send(twimlResponse);
   }
 }

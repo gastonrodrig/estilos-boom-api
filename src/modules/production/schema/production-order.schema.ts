@@ -71,6 +71,26 @@ export class SubStateHistoryItem {
   @Prop({ default: Date.now })
   date: Date;
 }
+@Schema({ _id: false })
+export class ChatMessage {
+  @Prop({ required: true, enum: ['bot', 'workshop'] })
+  sender: string;
+
+  @Prop({ required: true })
+  text: string;
+
+  @Prop({ default: Date.now })
+  timestamp: Date;
+}
+
+@Schema({ _id: false })
+export class ProductionProgress {
+  @Prop({ default: false }) corteIniciado: boolean;
+  @Prop() fechaEstimadaCorte?: string;
+  @Prop({ default: false }) costuraIniciada: boolean;
+  @Prop() unidadesListas?: number;
+  @Prop() fechaProyectadaFin?: string;
+}
 
 // 4. Esquema Principal
 @Schema({ timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }, collection: 'ProductionOrder' })
@@ -116,6 +136,34 @@ export class ProductionOrder {
 
   @Prop()
   delivery_date_estimated?: Date;
+
+  @Prop({
+    enum: [
+      'IDLE',
+      'AWAITING_CORTE',
+      'AWAITING_COSTURA',
+      'AWAITING_UNIDADES',
+      'AWAITING_FECHA_FIN',
+      'AWAITING_ENTREGA',
+      'AWAITING_UNIDADES_FINALES',
+      'AWAITING_NUEVA_FECHA_FIN',
+      'COMPLETED',
+    ],
+    default: 'IDLE'
+  })
+  botState: string;
+
+  @Prop({ default: false })
+  entregaCheckSent: boolean;
+
+  @Prop()
+  workshopPhone?: string;
+
+  @Prop({ type: ProductionProgress, default: () => ({}) })
+  progress: ProductionProgress;
+
+  @Prop({ type: [ChatMessage], default: [] })
+  chatHistory: ChatMessage[];
 }
 
 export const ProductionOrderSchema = SchemaFactory.createForClass(ProductionOrder);

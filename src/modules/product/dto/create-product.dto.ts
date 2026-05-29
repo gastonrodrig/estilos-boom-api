@@ -77,11 +77,21 @@ export class CreateProductDto {
   @IsNotEmpty()
   id_category: string;
 
-  // 🔄 NUEVO: Tipo de Origen (Retail)
-  @ApiProperty({ example: 'RETAIL', enum: ['RETAIL'], description: 'Origen del stock inicial' })
-  @IsEnum(['RETAIL'])
+  // 🔄 NUEVO: Tipo de Origen (Retail o Producción Propia)
+  @ApiProperty({ example: 'RETAIL', enum: ['RETAIL', 'PRODUCCION'], description: 'Origen del stock inicial o producción propia' })
+  @IsEnum(['RETAIL', 'PRODUCCION'])
   @IsNotEmpty()
   origin_type: string;
+
+  // 🧵 NUEVO: Ficha técnica de insumos (opcional si es RETAIL, obligatorio si es PRODUCCION)
+  @ApiProperty({ 
+    example: '[{"id_supply":"65f1a2b3c4d5e6f7a8b9c0d1","quantity":3}]',
+    description: 'Array de insumos stringizado en JSON con id_supply y quantity',
+    required: false
+  })
+  @IsString()
+  @IsOptional()
+  technical_sheet?: string;
 
   // 🎨 ACTUALIZADO: Lista de variantes que recibe el formulario
   @ApiProperty({ 
