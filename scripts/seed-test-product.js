@@ -3,7 +3,7 @@ require('dotenv').config();
 
 async function seed() {
   // Conecta usando la URL de tu .env (DATABASE_URL)
-  const mongoUri = process.env.DATABASE_URL || 'mongodb+srv://estilosboom_db_user:2vZZnZRMeI5YNe8M@cluster0.eecbgaf.mongodb.net/ebdb?retryWrites=true&w=majority&appName=EB-Cluster';
+  const mongoUri = process.env.DATABASE_URL;
   await mongoose.connect(mongoUri);
 
   console.log('Conectado a MongoDB:', mongoUri);
