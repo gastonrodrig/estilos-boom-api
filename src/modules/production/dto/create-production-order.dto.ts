@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsMongoId, IsNotEmpty, ValidateNested, IsString, IsOptional, IsNumber, IsDateString } from 'class-validator';
+import { IsArray, IsMongoId, IsNotEmpty, ValidateNested, IsString, IsOptional, IsNumber, IsDateString, ArrayMaxSize, ArrayMinSize, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ProductionSupplyItemDto {
@@ -34,7 +34,7 @@ export class ProductionVariantItemDto {
   id_variant: string;
 
   @IsNumber()
-  @IsNotEmpty()
+  @Min(1)
   quantity: number;
 
   @IsNumber()
@@ -43,10 +43,11 @@ export class ProductionVariantItemDto {
 }
 
 export class CreateProductionOrderDto {
-  @ApiProperty({ description: 'IDs de talleres invitados a cotizar', type: [String] })
+  @ApiProperty({ description: 'ID del taller invitado a cotizar (solo 1)', type: [String] })
   @IsArray()
+  @ArrayMinSize(1, { message: 'Debe seleccionar un taller.' })
+  @ArrayMaxSize(1, { message: 'Solo se puede asignar un taller por orden.' })
   @IsMongoId({ each: true })
-  @IsNotEmpty()
   workshop_ids: string[];
 
   @ApiProperty({ description: 'ID del trabajador' })

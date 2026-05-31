@@ -5,7 +5,7 @@ import { Model } from 'mongoose';
 import { User, UserDocument } from '../../modules/user/schemas/user.schema';
 import { Client, ClientDocument } from '../../modules/user/schemas/client.schema';
 import { ClientCompany, ClientCompanyDocument } from '../../modules/user/schemas/client-company.schema';
-import { Estado, Roles, ROLE_PERMISSIONS } from 'src/core/constants/app.constants';
+import { Estado, Roles } from 'src/core/constants/app.constants';
 
 @Injectable()
 export class UserSyncService {
@@ -13,7 +13,7 @@ export class UserSyncService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Client.name) private clientModel: Model<ClientDocument>,
     @InjectModel(ClientCompany.name)
-    private clientCompanyModel: Model<ClientCompanyDocument>,
+    private clientCompanyModel: Model<ClientCompanyDocument>
   ) { }
 
   async syncUser(decoded: any) {
@@ -122,22 +122,19 @@ export class UserSyncService {
       // Leer usuario final con client y company usando los ids reales del esquema
       const finalUser = await this.userModel.findById(user._id).lean();
 
-      const permissions = ROLE_PERMISSIONS[finalUser?.role] || [];
+      // Asignar rol al token (Permissions quitados en Fase 2B)
       const client = await this.clientModel.findOne({ id_user: user._id }).lean();
       const clientCompany = client
         ? await this.clientCompanyModel.findOne({ id_client: client._id }).lean()
         : null;
 
-      // Asignar rol al token
       await admin.auth().setCustomUserClaims(uid, {
         role: finalUser?.role,
-        permissions: permissions,
       });
 
       return {
         user: {
           ...finalUser,
-          permissions,
           client: client
             ? {
               ...client,

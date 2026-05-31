@@ -56,8 +56,18 @@ export class Product {
   @Prop({ type: Types.ObjectId, ref: 'Category', required: true })
   id_category: Types.ObjectId;
 
-  @Prop({ type: String, enum: ['RETAIL'], default: 'RETAIL', required: true })
+  @Prop({ type: String, enum: ['RETAIL', 'PRODUCCION'], default: 'RETAIL', required: true })
   origin_type: string;
+
+  @Prop({
+    type: [{
+      id_supply: { type: Types.ObjectId, ref: 'Supply', required: true },
+      quantity: { type: Number, required: true }
+    }],
+    _id: false,
+    default: undefined
+  })
+  technical_sheet?: { id_supply: Types.ObjectId; quantity: number }[];
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

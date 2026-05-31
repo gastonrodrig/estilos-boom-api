@@ -18,9 +18,13 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { WorkshopModule } from './modules/workshop/workshop.module';
 import { ProductionModule } from './modules/production/production.module';
+import { MercadoPagoModule } from './modules/mercadopago/mercadopago.module';
+import { PaymentManualModule } from './modules/payment-manual/payment-manual.module';
+import { AdminPaymentsModule } from './modules/admin-payments/admin-payments.module';
 
 @Module({
   imports: [
+    AdminPaymentsModule,
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     MongooseModule.forRootAsync({
@@ -59,7 +63,9 @@ import { ProductionModule } from './modules/production/production.module';
     InventoryModule,
     SupplierModule,
     WorkshopModule,
-    ProductionModule
+    ProductionModule,
+    MercadoPagoModule,
+    PaymentManualModule
   ],
   providers: [
     {

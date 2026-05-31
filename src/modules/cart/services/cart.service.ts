@@ -75,13 +75,13 @@ export class CartService {
   ? (typeof color === 'object' ? (color as any).name : color) 
   : ''; // Si color es null o undefined, le asignamos un string vacío
 
-    const variant = await this.productVariantModel
-      .findOne({
+    console.log(`[DEBUG CART] Resolving variant - productId: ${productId}, size: ${size}, color:`, color, `colorName: ${colorName}`);
+
+      const variant = await this.productVariantModel.findOne({
         id_product: new Types.ObjectId(productId),
         size,
-        'color.name': colorName,
-      })
-      .lean();
+        'color.name': colorName
+      }).lean();
 
     if (!variant) {
       throw new NotFoundException("Variante no encontrada");

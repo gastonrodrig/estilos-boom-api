@@ -3,12 +3,12 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { BullModule } from '@nestjs/bullmq';
 import { ClientService } from './services/client.service';
 import { WorkerService } from './services/worker.service';
-import { RoleManagementService } from './services/role-management.service';
+import { UserManagementService } from './services/user-management.service';
 import { ClientController } from './controllers/client.controller';
 import { WorkerController } from './controllers/worker.controller';
 import { UserController } from './controllers/user.controller';
 import { User, UserSchema } from './schemas/user.schema';
-import { Role, RoleSchema } from './schemas/role.schema';
+
 import { Client, ClientSchema } from './schemas/client.schema';
 import { Worker, WorkerSchema } from './schemas/worker.schema';
 import { ClientCompany, ClientCompanySchema } from './schemas/client-company.schema';
@@ -20,7 +20,7 @@ import { CartModule } from '../cart/cart.module';
   imports: [
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
-      { name: Role.name, schema: RoleSchema },
+
       { name: Client.name, schema: ClientSchema },
       { name: Worker.name, schema: WorkerSchema },
       { name: ClientCompany.name, schema: ClientCompanySchema },
@@ -35,7 +35,7 @@ import { CartModule } from '../cart/cart.module';
     CartModule,
   ],
   controllers: [ClientController, WorkerController, UserController],
-  providers: [ClientService, WorkerService, RoleManagementService],
-  exports: [ClientService, WorkerService, RoleManagementService, MongooseModule],
+  providers: [ClientService, WorkerService, UserManagementService],
+  exports: [ClientService, WorkerService, UserManagementService, MongooseModule],
 })
 export class UserModule { }
