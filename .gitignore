@@ -58,3 +58,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Docker
 docker.env
 .docker.env
+
+# Scripts locales de prueba
+scripts/
