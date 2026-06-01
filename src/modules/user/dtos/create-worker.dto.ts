@@ -1,5 +1,5 @@
 import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateWorkerDto {
   @ApiProperty({ example: 'worker@example.com' })
@@ -7,13 +7,28 @@ export class CreateWorkerDto {
   @IsNotEmpty()
   email: string;
 
-  @ApiProperty({ example: 'John Doe' })
+  @ApiProperty({ example: 'Juan' })
   @IsString()
   @IsNotEmpty()
-  full_name: string;
+  first_name: string;
 
-  @ApiProperty({ example: '987654321' })
+  @ApiProperty({ example: 'Pérez García' })
   @IsString()
   @IsNotEmpty()
-  phone: string;
+  last_name: string;
+
+  @ApiPropertyOptional({ example: '987654321' })
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @ApiPropertyOptional({ example: 'DNI' })
+  @IsString()
+  @IsOptional()
+  document_type?: string;
+
+  @ApiPropertyOptional({ example: '76543210' })
+  @IsString()
+  @IsOptional()
+  document_number?: string;
 }

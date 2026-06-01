@@ -66,13 +66,15 @@ export class WorkerService {
       }
 
       const newUser = new this.userModel({
-        email: dto.email,
-        full_name: dto.full_name,
-        phone: dto.phone,
-        role: Roles.WORKER,
-        auth_id: `manual-${Date.now()}`, 
-        status: 'Activo',
-
+        email:           dto.email,
+        first_name:      dto.first_name,
+        last_name:       dto.last_name,
+        phone:           dto.phone           ?? undefined,
+        document_type:   dto.document_type   ?? undefined,
+        document_number: dto.document_number ?? undefined,
+        role:            Roles.WORKER,
+        auth_id:         `manual-${Date.now()}`,
+        status:          'Activo',
       });
 
       const savedUser = await newUser.save({ session });
@@ -112,7 +114,9 @@ export class WorkerService {
       }
 
       const userUpdateFields: any = {};
-      if (dto.full_name) userUpdateFields.full_name = dto.full_name;
+      if (dto.full_name) {
+        // compatibilidad hacia atrás: si se pasa full_name se ignora
+      }
       if (dto.phone) userUpdateFields.phone = dto.phone;
       if (dto.is_active !== undefined)
         userUpdateFields.is_active = dto.is_active;

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UserManagementService } from '../services/user-management.service';
 import { Public, AuthRoles } from 'src/auth/decorators';
@@ -18,4 +18,10 @@ export class UserController {
         return this.roleService.findAllUsers();
     }
 
+    @Public()
+    @Get('roles-permissions')
+    @ApiOperation({ summary: 'Listar roles del sistema con conteo de usuarios asignados' })
+    async getRolesPermissions() {
+        return this.roleService.getRolesPermissions();
+    }
 }
