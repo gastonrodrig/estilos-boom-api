@@ -1,16 +1,17 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Patch, 
-  Param, 
-  Body, 
-  HttpCode, 
-  HttpStatus 
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiBody } from '@nestjs/swagger';
 import { InventoryService } from '../service';
 import { Public } from 'src/auth/decorators';
+import { CreateWarehouseDocumentDto } from 'src/modules/warehouse/dto/create-warehouse-document.dto';
 
 @ApiTags('Inventory (Gestión de Almacenes e Inventario)')
 @Controller('inventory')
@@ -18,7 +19,7 @@ export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   // ==========================================
-  // 1. ENDPOINTS: ALMACENES Y STOCK
+  // 1. ALMACENES
   // ==========================================
 
   @ApiOperation({ summary: 'Inicializar almacenes por defecto (Seed)' })
@@ -32,92 +33,102 @@ export class InventoryController {
   @ApiOperation({ summary: 'Listar todos los almacenes activos' })
   @Public()
   @Get('warehouses')
-  @HttpCode(HttpStatus.OK)
   findAllWarehouses() {
     return this.inventoryService.findAllWarehouses();
   }
 
-  @ApiOperation({ summary: 'Obtener el stock de una variante distribuido por almacén' })
+  // ==========================================
+  // 2. STOCK POR ALMACÉN
+  // ==========================================
+
+  @ApiOperation({ summary: 'Obtener stock de una variante distribuido por almacén' })
   @ApiParam({ name: 'variantId', description: 'ID de la variante de producto' })
   @Public()
   @Get('stock/:variantId')
-  @HttpCode(HttpStatus.OK)
   getStockByVariant(@Param('variantId') variantId: string) {
     return this.inventoryService.getStockByVariant(variantId);
   }
 
   // ==========================================
-  // 2. ENDPOINTS: KARDEX Y MOVIMIENTOS
+  // 3. KÁRDEX Y MOVIMIENTOS (solo lectura — los movimientos se crean al procesar documentos)
   // ==========================================
 
-  @ApiOperation({ summary: 'Obtener historial de movimientos (Kardex) de una variante' })
+  @ApiOperation({ summary: 'Obtener historial de movimientos (Kárdex) de una variante' })
   @ApiParam({ name: 'variantId', description: 'ID de la variante' })
   @Public()
   @Get('kardex/:variantId')
-  @HttpCode(HttpStatus.OK)
   getKardex(@Param('variantId') variantId: string) {
     return this.inventoryService.getKardexByVariant(variantId);
   }
 
-  @ApiOperation({ summary: 'Registrar un movimiento manual de inventario (Ajuste/Entrada/Salida)' })
-  @Public()
-  @Post('movements')
-  @HttpCode(HttpStatus.CREATED)
-  createManualMovement(@Body() body: {
-    id_variant: string;
-    id_warehouse: string;
-    id_worker: string;
-    type: 'ENTRADA_COMPRA' | 'SALIDA_VENTA' | 'TRANSFERENCIA_SALIDA' | 'TRANSFERENCIA_ENTRADA' | 'AJUSTE' | 'INCIDENCIA' | 'DEVOLUCION';
-    quantity: number;
-    reason: string;
-  }) {
-    return this.inventoryService.createMovement(body);
-  }
-
-  // ==========================================
-  // 3. ENDPOINTS: TRANSFERENCIAS INTERNAS (ALMACÉN ➡️ TIENDA)
-  // ==========================================
-
-  @ApiOperation({ summary: 'Listar todas las guías de transferencia interna registradas' })
-  @Public()
-  @Get('transfers')
-  @HttpCode(HttpStatus.OK)
-  findAllTransfers() {
-    return this.inventoryService.findAllTransfers();
-  }
-
-  @ApiOperation({ summary: 'Crear una nueva solicitud de transferencia interna (Guía de Remisión)' })
-  @Public()
-  @Post('transfers')
-  @HttpCode(HttpStatus.CREATED)
-  createTransfer(@Body() body: {
-    code: string;
-    id_source_warehouse: string;
-    id_target_warehouse: string;
-    id_sender_worker: string;
-    items: { id_variant: string; quantity: number }[];
-  }) {
-    return this.inventoryService.createTransfer(body);
-  }
-
-  @ApiOperation({ summary: 'Aprobar y procesar de forma atómica la transferencia (Inyecta el stock a tienda)' })
-  @ApiParam({ name: 'id', description: 'ID de la transferencia (InventoryTransfer)' })
-  @ApiBody({ schema: { type: 'object', properties: { id_worker_receiver: { type: 'string', example: '65f...1' } } } })
-  @Public()
-  @Patch('transfers/:id/complete')
-  @HttpCode(HttpStatus.OK)
-  completeTransfer(
-    @Param('id') id: string,
-    @Body('id_worker_receiver') receiverWorkerId: string,
-  ) {
-    return this.inventoryService.completeTransfer(id, receiverWorkerId);
-  }
-
-  @ApiOperation({ summary: 'Listar todos los movimientos de inventario registrados' })
+  @ApiOperation({ summary: 'Listar todos los movimientos de inventario' })
   @Public()
   @Get('movements')
-  @HttpCode(HttpStatus.OK)
-  findAll() {
+  findAllMovements() {
     return this.inventoryService.findAllMovements();
+  }
+
+  // ==========================================
+  // 4. DOCUMENTOS DE ALMACÉN
+  //    FLUJO OBLIGATORIO:
+  //    a) POST /documents  → crea el documento en estado PENDIENTE
+  //    b) PATCH /documents/:id/process → almacenero da conformidad → impacta stock + kárdex
+  // ==========================================
+
+  @ApiOperation({
+    summary: 'Crear documento de almacén en estado PENDIENTE (Compra, Venta, Transferencia, Ajuste)',
+    description:
+      'El documento es el disparador de cualquier movimiento de inventario. ' +
+      'Debe crearse DESPUÉS de que el catálogo (Producto + Variante) ya existe.',
+  })
+  @Public()
+  @Post('documents')
+  @HttpCode(HttpStatus.CREATED)
+  createDocument(@Body() dto: CreateWarehouseDocumentDto) {
+    return this.inventoryService.createWarehouseDocument(dto);
+  }
+
+  @ApiOperation({
+    summary: 'Procesar documento (almacenero da conformidad física)',
+    description:
+      'Acción atómica: actualiza physical_stock en WarehouseStock y registra líneas en InventoryMovements.',
+  })
+  @ApiParam({ name: 'id', description: 'ID del WarehouseDocument' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['id_worker', 'items'],
+      properties: {
+        id_worker: { type: 'string', example: '65f1a2b3c4d5e6f7a8b9c0d1' },
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id_variant: { type: 'string' },
+              quantity_received: { type: 'number' },
+              incidence_note: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @Public()
+  @Patch('documents/:id/process')
+  @HttpCode(HttpStatus.OK)
+  processDocument(
+    @Param('id') id: string,
+    @Body('id_worker') workerId: string,
+    @Body('items') items: { id_variant: string; quantity_received: number; incidence_note?: string }[],
+  ) {
+    return this.inventoryService.processWarehouseDocument(id, workerId, items);
+  }
+
+  @ApiOperation({ summary: 'Listar todos los documentos de almacén' })
+  @Public()
+  @Get('documents')
+  findAllDocuments() {
+    return this.inventoryService.findAllWarehouseDocuments();
   }
 }

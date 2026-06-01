@@ -1,57 +1,50 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { 
-  InventoryMovement, InventoryMovementSchema, 
-  InventoryTransfer, 
-  InventoryTransferSchema, 
-  PurchaseOrder, PurchaseOrderSchema, 
-  Warehouse, 
-  WarehouseSchema, 
-  WarehouseStock, 
-  WarehouseStockSchema
+import {
+  InventoryMovement, InventoryMovementSchema,
+  PurchaseOrder, PurchaseOrderSchema,
+  PrePurchaseOrder, PrePurchaseOrderSchema,
 } from './schema';
-import { ProductVariant, ProductVariantSchema } from '../product/schemas'; // Importante
-import { Supplier, SupplierSchema } from '../supplier/schema/supplier.schema'; // Importante
-import { PurchaseOrdersService, RankingService, InventoryService } from './service';
-import { PurchaseOrdersController,InventoryController } from './controller';
-import { SuppliersController } from '../supplier/controller/suppliers.controller'; // Si quieres exponer endpoints de proveedores aquí
+import { ProductVariant, ProductVariantSchema, Product, ProductSchema } from '../product/schemas';
+import { Supplier, SupplierSchema } from '../supplier/schema/supplier.schema';
+import { Workshop, WorkshopSchema } from '../workshop/schema/workshop.schema';
+import { WarehouseModule } from '../warehouse/warehouse.module';
+
+import { InventoryService, PurchaseOrdersService, RankingService } from './service';
+import { PrePurchaseOrdersService } from './service/prepurchase-order.service';
 import { SuppliersService } from '../supplier/service/suppliers.service';
 import { StorageService } from '../firebase/services';
-import { PrePurchaseOrder, PrePurchaseOrderSchema } from './schema/prepurchaseOrder.schema';
-import { PrePurchaseOrdersService } from './service/prepurchase-order.service';
+
+import { InventoryController } from './controller/inventory.controller';
+import { PurchaseOrdersController } from './controller/purchase-orders.controller';
 import { PrePurchaseOrdersController } from './controller/prepurchase.controller';
-import { Workshop, WorkshopSchema } from '../workshop/schema/workshop.schema';
 
 @Module({
   imports: [
+    WarehouseModule, // Provee Warehouse, WarehouseStock y WarehouseDocument via MongooseModule export
     MongooseModule.forFeature([
       { name: InventoryMovement.name, schema: InventoryMovementSchema },
       { name: PurchaseOrder.name, schema: PurchaseOrderSchema },
-      // DEBES AGREGAR ESTOS DOS AQUÍ:
-      { name: ProductVariant.name, schema: ProductVariantSchema },
-      { name: Supplier.name, schema: SupplierSchema },
       { name: PrePurchaseOrder.name, schema: PrePurchaseOrderSchema },
+      { name: ProductVariant.name, schema: ProductVariantSchema },
+      { name: Product.name, schema: ProductSchema },
+      { name: Supplier.name, schema: SupplierSchema },
       { name: Workshop.name, schema: WorkshopSchema },
-      { name: Warehouse.name, schema: WarehouseSchema },
-      { name: WarehouseStock.name, schema: WarehouseStockSchema },
-      { name: InventoryTransfer.name, schema: InventoryTransferSchema },
     ]),
   ],
   controllers: [
-    PurchaseOrdersController, 
-    InventoryController, 
-    SuppliersController,
-    PrePurchaseOrdersController // Controlador para manejar precompras
+    InventoryController,
+    PurchaseOrdersController,
+    PrePurchaseOrdersController,
   ],
   providers: [
-    PurchaseOrdersService, 
-    RankingService, 
-    InventoryService, 
-    SuppliersService, // Agrégalo si no tienes un SuppliersModule aparte
+    InventoryService,
+    PurchaseOrdersService,
+    RankingService,
+    PrePurchaseOrdersService,
+    SuppliersService,
     StorageService,
-    PrePurchaseOrdersService // Servicio para manejar la lógica de precompras
   ],
-  // Exporta los servicios si otros módulos (como Ventas) necesitan el stock
-  exports: [InventoryService, PurchaseOrdersService, RankingService, PrePurchaseOrdersService] 
+  exports: [InventoryService, PurchaseOrdersService, RankingService, PrePurchaseOrdersService],
 })
 export class InventoryModule {}

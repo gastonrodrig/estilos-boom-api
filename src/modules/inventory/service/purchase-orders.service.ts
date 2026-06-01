@@ -120,7 +120,7 @@ export class PurchaseOrdersService {
       type: 'INGRESO_COMPRA',
       status: 'PENDIENTE',
       id_source_warehouse: null, // Viene de un proveedor externo
-      id_target_warehouse: String(centralWarehouse._id), // Ingresa a nuestro Almacén Central
+      id_target_warehouse: String((centralWarehouse as any)._id),
       id_origin_doc: String(order._id),
       id_sender_worker: workerId || String(order.id_worker),
       notes: `Ingreso generado automáticamente por conformidad de la Orden de Compra ${order.order_number}`,
@@ -130,7 +130,7 @@ export class PurchaseOrdersService {
     // 🛠️ PROCESAMIENTO AUTOMÁTICO DE LOS INVENTARIOS (Afecta Stock y Kárdex)
     // Invocamos el método del servicio de inventarios que centraliza y mitiga errores matemáticos
     await this.inventoryService.processWarehouseDocument(
-      String(warehouseDoc._id),
+      String((warehouseDoc as any)._id),
       workerId || String(order.id_worker),
       documentItems.map(i => ({
         id_variant: String(i.id_variant),

@@ -56,9 +56,11 @@ export class ProductService {
       const pId = product._id.toString();
       const variants = byProductId.get(pId) ?? [];
 
+      // El stock disponible vive en WarehouseStock, no en ProductVariant.
+      // El endpoint GET /inventory/stock/:variantId expone el stock real por almacén.
       const variantsWithAvailable = variants.map(v => ({
         ...v,
-        available_stock: v.stock 
+        available_stock: null,
       }));
 
       return { ...plain, variants: variantsWithAvailable };

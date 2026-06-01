@@ -8,11 +8,14 @@ import { Model, Types } from 'mongoose';
 import { 
   InventoryMovement, InventoryMovementDocument,
 } from '../schema';
-import { Warehouse } from 'src/modules/warehouse/schema';
-
-import { WarehouseDocument as WarehouseMongoDocument, WarehouseDocumentDocument, WarehouseDocument } from 'src/modules/warehouse/schema/warehouse-document.schema';
-import { WarehouseStockDocument } from 'src/modules/warehouse/schema';
-import { WarehouseStock } from 'src/modules/warehouse/schema';
+// Alias para evitar colisión: WarehouseDoc = tipo Mongoose de la colección Warehouse
+import { Warehouse, WarehouseDocument as WarehouseDoc } from 'src/modules/warehouse/schema/warehouse.schema';
+import { WarehouseStock, WarehouseStockDocument } from 'src/modules/warehouse/schema/warehouse-stock.schema';
+// WarehouseDocument = clase/modelo de la colección WarehouseDocuments (documentos operativos)
+import {
+  WarehouseDocument,
+  WarehouseDocumentDocument,
+} from 'src/modules/warehouse/schema/warehouse-document.schema';
 
 import { CreateWarehouseDocumentDto } from 'src/modules/warehouse/dto/create-warehouse-document.dto';
 
@@ -22,8 +25,8 @@ export class InventoryService {
     @InjectModel(InventoryMovement.name) 
     private readonly movementModel: Model<InventoryMovementDocument>,
 
-    @InjectModel(Warehouse.name) 
-    private readonly warehouseModel: Model<WarehouseMongoDocument>,
+    @InjectModel(Warehouse.name)
+    private readonly warehouseModel: Model<WarehouseDoc>,
 
     @InjectModel(WarehouseStock.name) 
     private readonly stockModel: Model<WarehouseStockDocument>,
@@ -157,6 +160,11 @@ export class InventoryService {
       .sort({ created_at: -1 })
       .populate('id_worker', 'first_name last_name')
       .populate('id_warehouse', 'name code')
+      .populate({
+        path: 'id_variant',
+        select: 'sku_variant size color',
+        populate: { path: 'id_product', select: 'name' },
+      })
       .exec();
   }
 
@@ -256,6 +264,11 @@ export class InventoryService {
       .populate('id_target_warehouse', 'name code')
       .populate('id_sender_worker', 'first_name last_name')
       .populate('id_receiver_worker', 'first_name last_name')
+      .populate({
+        path: 'items.id_variant',
+        select: 'sku_variant size color',
+        populate: { path: 'id_product', select: 'name images' },
+      })
       .sort({ created_at: -1 })
       .exec();
   }

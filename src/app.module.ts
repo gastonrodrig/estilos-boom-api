@@ -21,6 +21,7 @@ import { ProductionModule } from './modules/production/production.module';
 import { MercadoPagoModule } from './modules/mercadopago/mercadopago.module';
 import { PaymentManualModule } from './modules/payment-manual/payment-manual.module';
 import { AdminPaymentsModule } from './modules/admin-payments/admin-payments.module';
+import { WarehouseModule } from './modules/warehouse/warehouse.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { AdminPaymentsModule } from './modules/admin-payments/admin-payments.mod
     FirebaseModule,
     CartModule,
     SupplyModule,
+    WarehouseModule,
     InventoryModule,
     SupplierModule,
     WorkshopModule,
