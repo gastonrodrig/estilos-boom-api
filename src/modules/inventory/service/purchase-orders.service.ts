@@ -84,6 +84,17 @@ export class PurchaseOrdersService {
       );
     }
 
+    // Verificar si el documento ya existe para esta orden de compra
+    const existingDoc = await this.connection.model('WarehouseDocument').findOne({
+      id_origin_doc: order._id,
+      type: 'INGRESO_COMPRA'
+    }).session(session).exec();
+
+    // Si ya existe y fue completado (procesado por almacenero), no hacemos nada más
+    if (existingDoc && (existingDoc as any).status === 'COMPLETADO') {
+      return;
+    }
+
     // Distribución controlada de mermas/incidencias sobre los ítems
     let remainingIncidences = order.qty_incidences || 0;
     const documentItems = [];
@@ -113,24 +124,32 @@ export class PurchaseOrdersService {
       });
     }
 
-    // 🚀 GENERACIÓN DEL DOCUMENTO DE INGRESO UNIFICADO
-    // Creamos el WarehouseDocument correspondiente a la recepción física de mercadería
-    const warehouseDoc = await this.inventoryService.createWarehouseDocument({
-      document_number: `REC-${order.order_number}`, // Correlativo asociado a la OC
-      type: 'INGRESO_COMPRA',
-      status: 'PENDIENTE',
-      id_source_warehouse: null, // Viene de un proveedor externo
-      id_target_warehouse: String((centralWarehouse as any)._id),
-      id_origin_doc: String(order._id),
-      id_sender_worker: workerId || String(order.id_worker),
-      notes: `Ingreso generado automáticamente por conformidad de la Orden de Compra ${order.order_number}`,
-      items: documentItems
-    });
+    let docId = '';
+
+    if (existingDoc) {
+      // Si el documento existe pero sigue PENDIENTE, usamos su ID
+      docId = String((existingDoc as any)._id);
+    } else {
+      // 🚀 GENERACIÓN DEL DOCUMENTO DE INGRESO UNIFICADO
+      // Creamos el WarehouseDocument correspondiente a la recepción física de mercadería
+      const warehouseDoc = await this.inventoryService.createWarehouseDocument({
+        document_number: `REC-${order.order_number}`, // Correlativo asociado a la OC
+        type: 'INGRESO_COMPRA',
+        status: 'PENDIENTE',
+        id_source_warehouse: null, // Viene de un proveedor externo
+        id_target_warehouse: String((centralWarehouse as any)._id),
+        id_origin_doc: String(order._id),
+        id_sender_worker: workerId || String(order.id_worker),
+        notes: `Ingreso generado automáticamente por conformidad de la Orden de Compra ${order.order_number}`,
+        items: documentItems
+      });
+      docId = String((warehouseDoc as any)._id);
+    }
 
     // 🛠️ PROCESAMIENTO AUTOMÁTICO DE LOS INVENTARIOS (Afecta Stock y Kárdex)
     // Invocamos el método del servicio de inventarios que centraliza y mitiga errores matemáticos
     await this.inventoryService.processWarehouseDocument(
-      String((warehouseDoc as any)._id),
+      docId,
       workerId || String(order.id_worker),
       documentItems.map(i => ({
         id_variant: String(i.id_variant),
@@ -156,11 +175,15 @@ export class PurchaseOrdersService {
   }
 
   async startQualityCheck(purchaseOrderId: string, preOrderId: string) {
-    await this.poModel.findByIdAndUpdate(
+    const order = await this.poModel.findByIdAndUpdate(
       purchaseOrderId, 
       { status: 'EN_REVISION' }, 
-      { returnDocument: 'after' } 
+      { new: true } 
     );
+
+    if (!order) {
+       throw new NotFoundException('Orden de Compra no encontrada en la base de datos.');
+    }
 
     const updatedPreOrder = await this.preOrderModel.findByIdAndUpdate(
       preOrderId,
@@ -173,6 +196,36 @@ export class PurchaseOrdersService {
 
     if (!updatedPreOrder) {
        throw new NotFoundException('Pre-Orden no encontrada en la base de datos.');
+    }
+
+    // 🚀 Generar el WarehouseDocument en estado PENDIENTE para que aparezca en el panel del Almacenero
+    const centralWarehouse = await this.connection.model('Warehouse').findOne({ code: 'ALM-CEN' }).exec();
+    if (centralWarehouse) {
+      const documentItems = order.items.map(item => ({
+        id_variant: String(item.id_variant),
+        quantity_expected: Number(item.quantity),
+        quantity_received: 0,
+        incidence_note: ''
+      }));
+
+      const existingDoc = await this.connection.model('WarehouseDocument').findOne({
+        id_origin_doc: order._id,
+        type: 'INGRESO_COMPRA'
+      }).exec();
+
+      if (!existingDoc) {
+        await this.inventoryService.createWarehouseDocument({
+          document_number: `REC-${order.order_number}`,
+          type: 'INGRESO_COMPRA',
+          status: 'PENDIENTE',
+          id_source_warehouse: null,
+          id_target_warehouse: String((centralWarehouse as any)._id),
+          id_origin_doc: String(order._id),
+          id_sender_worker: String(order.id_worker),
+          notes: `Ingreso generado al iniciar control de calidad de la Orden de Compra ${order.order_number}`,
+          items: documentItems
+        });
+      }
     }
 
     return { prePurchaseOrder: updatedPreOrder };
