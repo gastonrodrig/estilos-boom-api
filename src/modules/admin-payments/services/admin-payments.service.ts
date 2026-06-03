@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { PaymentManualTransaction, PaymentManualTransactionDocument } from '../../payment-manual/schemas/payment-manual-transaction.schema';
 import { MercadoPagoTransaction, MercadoPagoTransactionDocument } from '../../mercadopago/schemas/mercadopago-transaction.schema';
 import { UnifiedPaymentMapper } from '../mappers/unified-payment.mapper';
@@ -72,6 +72,7 @@ export class AdminPaymentsService {
   }
 
   async confirmManualPayment(id: string) {
+    if (!Types.ObjectId.isValid(id)) throw new BadRequestException('ID de pago inválido');
     const payment = await this.manualModel.findById(id);
     if (!payment) throw new NotFoundException('Pago no encontrado');
     if (payment.status !== 'pending_validation') {
@@ -99,6 +100,7 @@ export class AdminPaymentsService {
   }
 
   async rejectManualPayment(id: string) {
+    if (!Types.ObjectId.isValid(id)) throw new BadRequestException('ID de pago inválido');
     const payment = await this.manualModel.findById(id);
     if (!payment) throw new NotFoundException('Pago no encontrado');
     if (payment.status !== 'pending_validation') {
