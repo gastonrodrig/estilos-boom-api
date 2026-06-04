@@ -3,7 +3,7 @@ import { PaymentManualService } from '../services/payment-manual.service';
 import { ProcessManualPaymentDto } from '../dto/process-manual-payment.dto';
 import { AuthGuard } from '@nestjs/passport'; // Assumes you have an auth guard, you can mock if not
 
-@Controller('api/v1/payment-manual')
+@Controller('payment-manual')
 export class PaymentManualController {
   constructor(private readonly paymentManualService: PaymentManualService) {}
 

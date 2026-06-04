@@ -22,6 +22,7 @@ import { MercadoPagoModule } from './modules/mercadopago/mercadopago.module';
 import { PaymentManualModule } from './modules/payment-manual/payment-manual.module';
 import { AdminPaymentsModule } from './modules/admin-payments/admin-payments.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
+import { SalesModule } from './modules/sales/sales.module';
 
 @Module({
   imports: [
@@ -67,7 +68,8 @@ import { WarehouseModule } from './modules/warehouse/warehouse.module';
     WorkshopModule,
     ProductionModule,
     MercadoPagoModule,
-    PaymentManualModule
+    PaymentManualModule,
+    SalesModule
   ],
   providers: [
     {

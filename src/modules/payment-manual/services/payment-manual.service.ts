@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { PaymentManualTransaction, PaymentManualTransactionDocument } from '../schemas/payment-manual-transaction.schema';
 import { ProcessManualPaymentDto } from '../dto/process-manual-payment.dto';
+import { SalesService } from '../../sales/services/sales.service';
 
 @Injectable()
 export class PaymentManualService {
@@ -10,6 +11,7 @@ export class PaymentManualService {
 
   constructor(
     @InjectModel(PaymentManualTransaction.name) private transactionModel: Model<PaymentManualTransactionDocument>,
+    private readonly salesService: SalesService,
   ) {}
 
   async processPayment(dto: ProcessManualPaymentDto, userId: string) {
@@ -22,6 +24,20 @@ export class PaymentManualService {
         operationNumber: dto.operationNumber,
         status: 'pending_validation',
       });
+
+      // ¡Aquí nace el PORD! (El pedido web que verá el cliente)
+      // Extraemos la información básica del DTO para la orden
+      const orderData = {
+        userId: new Types.ObjectId(userId),
+        clientName: 'Cliente Temporal', // Idealmente sacar del DTO o JWT
+        amount: dto.amount,
+        paymentMethod: dto.paymentMethod,
+        deliveryMethod: 'envio_estandar',
+        items: [] // Idealmente los items del carrito
+      };
+      
+      const pord = await this.salesService.createPreOrder(orderData);
+      newTransaction.orderId = pord._id; // Enlazamos el pago con la orden generada
 
       await newTransaction.save();
 
