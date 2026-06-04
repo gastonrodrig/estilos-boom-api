@@ -96,7 +96,7 @@ export class CartService {
           : null,
       // El stock disponible real vive en WarehouseStock (no en ProductVariant).
       // El carrito no hace reserva de stock; la validación ocurre al confirmar la orden.
-      stock: null, 
+      stock: Infinity, 
     };
   }
 

@@ -33,4 +33,13 @@ export class ProcessPaymentDto {
   @IsString()
   @IsOptional()
   orderId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  items?: any[];
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  deliveryMethod?: string;
 }
