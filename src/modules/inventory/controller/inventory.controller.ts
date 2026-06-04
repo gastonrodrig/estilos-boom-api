@@ -7,8 +7,12 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  BadRequestException,
+  UseInterceptors,
+  UploadedFiles,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiBody } from '@nestjs/swagger';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { InventoryService } from '../service';
 import { Public } from 'src/auth/decorators';
 import { CreateWarehouseDocumentDto } from 'src/modules/warehouse/dto/create-warehouse-document.dto';
@@ -47,6 +51,30 @@ export class InventoryController {
   @Get('stock/:variantId')
   getStockByVariant(@Param('variantId') variantId: string) {
     return this.inventoryService.getStockByVariant(variantId);
+  }
+
+  @ApiOperation({ summary: 'Obtener stock de múltiples variantes distribuido por almacén en lote' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['variant_ids'],
+      properties: {
+        variant_ids: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['65f1a2b3c4d5e6f7a8b9c0d1', '65f1a2b3c4d5e6f7a8b9c0d2']
+        }
+      }
+    }
+  })
+  @Public()
+  @Post('stock/batch')
+  @HttpCode(HttpStatus.OK)
+  getStockByMultipleVariants(@Body('variant_ids') variantIds: string[]) {
+    if (!variantIds || !Array.isArray(variantIds)) {
+      throw new BadRequestException('El cuerpo de la petición debe contener un arreglo variant_ids');
+    }
+    return this.inventoryService.getStockByMultipleVariants(variantIds);
   }
 
   // ==========================================
@@ -123,6 +151,17 @@ export class InventoryController {
     @Body('items') items: { id_variant: string; quantity_received: number; incidence_note?: string }[],
   ) {
     return this.inventoryService.processWarehouseDocument(id, workerId, items);
+  }
+
+  @ApiOperation({ summary: 'Subir archivos adjuntos de evidencia a un documento de almacén' })
+  @Public()
+  @Patch('documents/:id/attachments')
+  @UseInterceptors(FilesInterceptor('files', 5))
+  async uploadWarehouseDocAttachments(
+    @Param('id') id: string,
+    @UploadedFiles() files: Express.Multer.File[]
+  ) {
+    return this.inventoryService.addWarehouseDocAttachments(id, files);
   }
 
   @ApiOperation({ summary: 'Listar todos los documentos de almacén' })

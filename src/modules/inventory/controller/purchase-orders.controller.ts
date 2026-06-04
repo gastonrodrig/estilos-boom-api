@@ -1,10 +1,11 @@
-import { Controller, Post, Get, Body, HttpCode, HttpStatus, Patch, Param, Query } from '@nestjs/common';
+import { Controller, Post, Get, Body, HttpCode, HttpStatus, Patch, Param, Query, UseInterceptors, UploadedFiles } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PurchaseOrdersService } from '../service';
 import { CreatePurchaseOrderDto, UpdateOrderStatusDto } from '../dto';
 import { Public } from 'src/auth/decorators';
 import { RankingService } from '../service/ranking.service';
 import { PrePurchaseOrdersService } from '../service/prepurchase-order.service';
+import { FilesInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Purchase Orders')
 @Controller('purchase-orders')
@@ -94,5 +95,15 @@ async extendDeliveryDate(
 ) {
   // Llamamos al servicio pasando el ID de la OC, la nueva fecha y el motivo
   return this.poService.extendDeliveryDate(id, body.newDate, body.reason);
+}
+
+@Patch(':id/attachments')
+@Public()
+@UseInterceptors(FilesInterceptor('files', 5))
+async uploadAttachments(
+  @Param('id') id: string,
+  @UploadedFiles() files: Express.Multer.File[]
+) {
+  return this.poService.addAttachments(id, files);
 }
 }

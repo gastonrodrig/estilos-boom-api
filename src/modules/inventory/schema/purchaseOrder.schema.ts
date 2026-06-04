@@ -62,6 +62,9 @@ export class PurchaseOrder {
 
   @Prop()
   quality_observations: string; // 👈 Almacena las notas del control de calidad ("Prendas descosidas", etc.)
+
+  @Prop({ type: [String], default: [] })
+  attachments: string[]; // 👈 Guarda enlaces/URLs de archivos adjuntos (PDFs, facturas)
 }
 
 export const PurchaseOrderSchema = SchemaFactory.createForClass(PurchaseOrder);

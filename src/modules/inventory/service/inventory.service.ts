@@ -18,6 +18,7 @@ import {
 } from 'src/modules/warehouse/schema/warehouse-document.schema';
 
 import { CreateWarehouseDocumentDto } from 'src/modules/warehouse/dto/create-warehouse-document.dto';
+import { StorageService } from '../../firebase/services';
 
 @Injectable()
 export class InventoryService {
@@ -33,6 +34,8 @@ export class InventoryService {
 
     @InjectModel(WarehouseDocument.name) 
     private readonly warehouseDocModel: Model<WarehouseDocumentDocument>,
+
+    private readonly storageService: StorageService,
   ) {}
 
   // ==========================================
@@ -87,6 +90,14 @@ export class InventoryService {
   async getStockByVariant(variantId: string) {
     return this.stockModel
       .find({ id_variant: new Types.ObjectId(variantId) })
+      .populate('id_warehouse', 'name code')
+      .exec();
+  }
+
+  async getStockByMultipleVariants(variantIds: string[]) {
+    const objectIds = variantIds.map((id) => new Types.ObjectId(id));
+    return this.stockModel
+      .find({ id_variant: { $in: objectIds } })
       .populate('id_warehouse', 'name code')
       .exec();
   }
@@ -254,7 +265,94 @@ export class InventoryService {
     doc.status = 'COMPLETADO';
     doc.id_receiver_worker = idWorker;
     
-    return await doc.save();
+    const savedDoc = await doc.save();
+
+    // Si es un ingreso por compra, actualizamos la OC y PreOC asociadas
+    if (doc.type === 'INGRESO_COMPRA' && doc.id_origin_doc) {
+      try {
+        const poModel = this.warehouseDocModel.db.model('PurchaseOrder') as any;
+        const preOrderModel = this.warehouseDocModel.db.model('PrePurchaseOrder') as any;
+        const supplierModel = this.warehouseDocModel.db.model('Supplier') as any;
+
+        const order = await poModel.findById(doc.id_origin_doc);
+        if (order && order.status !== 'COMPLETADA') {
+          // Calcular mermas/incidencias
+          // Sumamos todas las diferencias entre expected y received
+          let qtyIncidences = 0;
+          let notesList: string[] = [];
+
+          for (const item of doc.items) {
+            const diff = Math.max(0, (item.quantity_expected || 0) - (item.quantity_received || 0));
+            qtyIncidences += diff;
+            if (item.incidence_note && item.incidence_note.trim() !== '') {
+              notesList.push(`${item.id_variant}: ${item.incidence_note}`);
+            }
+          }
+
+          // Rating de calidad: si hay incidencias bajamos el rating
+          const qualityRating = qtyIncidences === 0 ? 5 : qtyIncidences < 5 ? 4 : 3;
+
+          order.status = 'COMPLETADA';
+          order.quality_rating = qualityRating;
+          order.delivery_date_actual = new Date();
+          order.qty_incidences = qtyIncidences;
+          order.quality_observations = notesList.length > 0 ? notesList.join(' | ') : 'Recepción completa sin incidencias físicas.';
+          if (doc.attachments && doc.attachments.length > 0) {
+            order.attachments = [...(order.attachments || []), ...doc.attachments];
+          }
+          await order.save();
+
+          // Actualizar PrePurchaseOrder
+          await preOrderModel.findOneAndUpdate(
+            { id_purchase_order: order._id },
+            { status: 'COMPLETADA' },
+            { new: true }
+          );
+
+          // Actualizar ranking del proveedor
+          const agentId = order.id_supplier.toString();
+          const query: any = {
+            status: 'COMPLETADA',
+            quality_rating: { $exists: true },
+            id_supplier: agentId
+          };
+
+          const orders = await poModel.find(query).exec();
+          if (orders.length > 0) {
+            let onTimeOrders = 0;
+            let totalQualityScore = 0;
+            let totalIncidences = 0;
+            
+            orders.forEach((o: any) => {
+              if (o.delivery_date_actual && o.delivery_date_estimated) {
+                if (new Date(o.delivery_date_actual) <= new Date(o.delivery_date_estimated)) {
+                  onTimeOrders++;
+                }
+              }
+              totalQualityScore += (o.quality_rating || 0);
+              if (o.quality_rating <= 2) totalIncidences++;
+            });
+
+            const totalOrders = orders.length;
+            const onTimeRate = (onTimeOrders / totalOrders) * 100;
+            const avgQuality = totalQualityScore / totalOrders;
+            const punctualityScore = (onTimeRate / 100) * 5;
+            const historicalRating = (punctualityScore * 0.5) + (avgQuality * 0.5);
+
+            await supplierModel.findByIdAndUpdate(agentId, {
+              rating: Number(historicalRating.toFixed(2)),
+              total_orders: totalOrders,
+              on_time_delivery_rate: Number(onTimeRate.toFixed(2)),
+              incidence_rate: Number((totalIncidences / totalOrders).toFixed(2))
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error al actualizar flujo de OC tras recepción:', err);
+      }
+    }
+
+    return savedDoc;
   }
 
   async findAllWarehouseDocuments() {
@@ -271,5 +369,34 @@ export class InventoryService {
       })
       .sort({ created_at: -1 })
       .exec();
+  }
+
+  async addWarehouseDocAttachments(id: string, files: Express.Multer.File[]) {
+    const doc = await this.warehouseDocModel.findById(id);
+    if (!doc) throw new NotFoundException('Documento de almacén no encontrado.');
+
+    const uploadResults = await this.storageService.uploadMultipleFiles(
+      'warehouse-documents',
+      files,
+      id,
+    ) as any[];
+    const urls = uploadResults.map((r: any) => r.url);
+    doc.attachments = [...(doc.attachments || []), ...urls];
+    const saved = await doc.save();
+
+    if (saved.type === 'INGRESO_COMPRA' && saved.id_origin_doc) {
+      try {
+        const poModel = this.warehouseDocModel.db.model('PurchaseOrder') as any;
+        const order = await poModel.findById(saved.id_origin_doc);
+        if (order) {
+          order.attachments = [...(order.attachments || []), ...urls];
+          await order.save();
+        }
+      } catch (err) {
+        console.error('Error al sincronizar adjuntos de ingreso a la OC:', err);
+      }
+    }
+
+    return saved;
   }
 }
