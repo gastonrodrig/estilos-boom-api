@@ -51,6 +51,9 @@ export class WarehouseDocument {
   @Prop({ type: [WarehouseDocumentItemSchema], required: true })
   items: WarehouseDocumentItem[];
 
+  @Prop({ type: [String], default: [] })
+  attachments: string[];
+
   @Prop()
   notes: string;
 }

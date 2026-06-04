@@ -9,6 +9,7 @@ import { SuppliersService } from 'src/modules/supplier/service/suppliers.service
 import { RankingService } from './ranking.service';
 import { PrePurchaseOrder, PrePurchaseOrderDocument } from '../schema/prepurchaseOrder.schema';
 import { InventoryService } from './inventory.service';
+import { StorageService } from 'src/modules/firebase/services';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -20,6 +21,7 @@ export class PurchaseOrdersService {
     private readonly supplierService: SuppliersService, 
     private readonly rankingService: RankingService, 
     @InjectModel(PrePurchaseOrder.name) private preOrderModel: Model<PrePurchaseOrderDocument>, 
+    private readonly storageService: StorageService,
   ) {}
 
   // 1. Crear una nueva Orden de Compra (Estado Inicial: PENDIENTE)
@@ -309,5 +311,24 @@ export class PurchaseOrdersService {
       session.endSession();
       throw error;
     }
+  }
+
+  async addAttachments(purchaseOrderId: string, files: Express.Multer.File[]): Promise<PurchaseOrder> {
+    const order = await this.poModel.findById(purchaseOrderId);
+    if (!order) throw new NotFoundException('Orden no encontrada');
+
+    const uploadResults = await this.storageService.uploadMultipleFiles(
+      'purchase-orders',
+      files,
+      purchaseOrderId
+    );
+
+    const urls = uploadResults.map((r: any) => r.url);
+    
+    return this.poModel.findByIdAndUpdate(
+      purchaseOrderId,
+      { $push: { attachments: { $each: urls } } },
+      { new: true }
+    ).exec();
   }
 }
