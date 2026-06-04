@@ -6,6 +6,7 @@ import { CreatePreferenceDto } from '../dto/create-preference.dto';
 import { ProcessPaymentDto } from '../dto/process-payment.dto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { ConfigService } from '@nestjs/config';
+import { SalesService } from '../../sales/services/sales.service';
 
 @Injectable()
 export class MercadoPagoService {
@@ -15,6 +16,7 @@ export class MercadoPagoService {
   constructor(
     @InjectModel('MercadoPagoTransaction') private transactionModel: Model<MercadoPagoTransactionDocument>,
     private readonly configService: ConfigService,
+    private readonly salesService: SalesService,
   ) {
     this.client = new MercadoPagoConfig({
       accessToken: this.configService.get<string>('MP_ACCESS_TOKEN') || '',
@@ -93,10 +95,21 @@ export class MercadoPagoService {
 
       const response = await payment.create({ body });
 
+      // Generate PORD
+      const orderData = {
+        userId: new Types.ObjectId(userId),
+        clientName: 'Cliente Temporal MP', // Or get from payer.email
+        amount: response.transaction_amount || dto.transaction_amount,
+        paymentMethod: 'mercadopago', // or response.payment_method_id
+        deliveryMethod: 'envio_estandar',
+        items: []
+      };
+      const pord = await this.salesService.createPreOrder(orderData);
+
       // Save to database
       const newTransaction = new this.transactionModel({
         userId: new Types.ObjectId(userId),
-        orderId: dto.orderId ? new Types.ObjectId(dto.orderId) : new Types.ObjectId(),
+        orderId: pord._id,
         amount: response.transaction_amount,
         currency: response.currency_id,
         status: response.status,

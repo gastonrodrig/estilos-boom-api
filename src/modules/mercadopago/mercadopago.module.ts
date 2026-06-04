@@ -3,12 +3,14 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { MercadoPagoController } from './controllers/mercadopago.controller';
 import { MercadoPagoService } from './services/mercadopago.service';
 import { MercadoPagoTransaction, MercadoPagoTransactionSchema } from './schemas/mercadopago-transaction.schema';
+import { SalesModule } from '../sales/sales.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: MercadoPagoTransaction.name, schema: MercadoPagoTransactionSchema },
     ]),
+    SalesModule,
   ],
   controllers: [MercadoPagoController],
   providers: [MercadoPagoService],
