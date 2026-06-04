@@ -32,7 +32,7 @@ export class PaymentManualService {
       // Extraemos la información básica del DTO para la orden
       const orderData = {
         userId: queryUserId,
-        clientName: 'Cliente Temporal', // Idealmente sacar del DTO o JWT
+        clientName: dto.clientName || 'Cliente Temporal', // Idealmente sacar del DTO o JWT
         amount: dto.amount,
         paymentMethod: dto.paymentMethod,
         deliveryMethod: dto.deliveryMethod || 'envio_estandar',

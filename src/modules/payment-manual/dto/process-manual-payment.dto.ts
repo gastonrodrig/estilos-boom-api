@@ -24,4 +24,8 @@ export class ProcessManualPaymentDto {
   @IsString()
   @IsOptional()
   deliveryMethod?: string;
+
+  @IsString()
+  @IsOptional()
+  clientName?: string;
 }
