@@ -7,7 +7,10 @@ export class UnifiedPaymentMapper {
   static mapManual(transaction: any): UnifiedPaymentDto {
     const paymentMethodMap: Record<string, string> = {
       qr: 'Yape / Plin',
+      yape: 'Yape',
+      plin: 'Plin',
       transfer: 'Transferencia',
+      transferencia: 'Transferencia',
     };
 
     let mappedStatus: 'PENDIENTE' | 'VERIFICADO' | 'RECHAZADO' | 'OBSERVADO' = 'PENDIENTE';

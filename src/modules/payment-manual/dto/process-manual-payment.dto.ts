@@ -14,6 +14,14 @@ export class ProcessManualPaymentDto {
   paymentMethod: string;
 
   @IsString()
+  @IsString()
   @IsNotEmpty()
   operationNumber: string;
+
+  @IsOptional()
+  items?: any[];
+
+  @IsString()
+  @IsOptional()
+  deliveryMethod?: string;
 }

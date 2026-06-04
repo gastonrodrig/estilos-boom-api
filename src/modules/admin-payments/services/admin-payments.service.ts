@@ -5,12 +5,14 @@ import { PaymentManualTransaction, PaymentManualTransactionDocument } from '../.
 import { MercadoPagoTransaction, MercadoPagoTransactionDocument } from '../../mercadopago/schemas/mercadopago-transaction.schema';
 import { UnifiedPaymentMapper } from '../mappers/unified-payment.mapper';
 import { UnifiedPaymentDto } from '../dto/unified-payment.dto';
+import { SalesService } from '../../sales/services/sales.service';
 
 @Injectable()
 export class AdminPaymentsService {
   constructor(
     @InjectModel(PaymentManualTransaction.name) private manualModel: Model<PaymentManualTransactionDocument>,
     @InjectModel(MercadoPagoTransaction.name) private mpModel: Model<MercadoPagoTransactionDocument>,
+    private readonly salesService: SalesService,
   ) {}
 
   async getPayments(): Promise<UnifiedPaymentDto[]> {
@@ -93,8 +95,9 @@ export class AdminPaymentsService {
     payment.status = 'approved';
     await payment.save();
 
-    // TODO: Cuando exista el módulo de pedidos/ventas, actualizar aquí el estado del pedido asociado.
-    // Ejemplo: await this.orderModel.findByIdAndUpdate(payment.orderId, { status: 'PAID' }).exec();
+    if (payment.orderId) {
+      await this.salesService.confirmOrder(payment.orderId.toString());
+    }
 
     return { success: true, message: 'Pago verificado exitosamente' };
   }
@@ -113,7 +116,9 @@ export class AdminPaymentsService {
     }
     await payment.save();
 
-    // TODO: Cuando exista el módulo de pedidos/ventas, actualizar aquí el estado del pedido asociado (ej. a OBSERVED).
+    if (payment.orderId) {
+      await this.salesService.observeOrder(payment.orderId.toString());
+    }
 
     return { success: true, message: 'Pago observado exitosamente' };
   }

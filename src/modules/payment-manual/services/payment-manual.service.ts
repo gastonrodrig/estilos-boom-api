@@ -16,8 +16,11 @@ export class PaymentManualService {
 
   async processPayment(dto: ProcessManualPaymentDto, userId: string) {
     try {
+      const isObjectId = Types.ObjectId.isValid(userId);
+      const queryUserId = isObjectId ? new Types.ObjectId(userId) : new Types.ObjectId('661413a968600d8d73b0a234');
+
       const newTransaction = new this.transactionModel({
-        userId: new Types.ObjectId(userId),
+        userId: queryUserId,
         orderId: dto.orderId ? new Types.ObjectId(dto.orderId) : new Types.ObjectId(), // Usually passed from the cart to order flow
         amount: dto.amount,
         paymentMethod: dto.paymentMethod,
@@ -28,12 +31,12 @@ export class PaymentManualService {
       // ¡Aquí nace el PORD! (El pedido web que verá el cliente)
       // Extraemos la información básica del DTO para la orden
       const orderData = {
-        userId: new Types.ObjectId(userId),
+        userId: queryUserId,
         clientName: 'Cliente Temporal', // Idealmente sacar del DTO o JWT
         amount: dto.amount,
         paymentMethod: dto.paymentMethod,
-        deliveryMethod: 'envio_estandar',
-        items: [] // Idealmente los items del carrito
+        deliveryMethod: dto.deliveryMethod || 'envio_estandar',
+        items: dto.items || []
       };
       
       const pord = await this.salesService.createPreOrder(orderData);
@@ -73,6 +76,35 @@ export class PaymentManualService {
       };
     } catch (error) {
       this.logger.error('Error resubmitting manual payment', error);
+      throw new InternalServerErrorException('Error al reenviar la operación de pago');
+    }
+  }
+
+  async resubmitPaymentByOrderId(orderId: string, newOperationNumber: string, userId: string) {
+    try {
+      const payment = await this.transactionModel.findOne({ orderId: new Types.ObjectId(orderId) });
+      if (!payment) {
+        throw new Error('Pago manual asociado a esta orden no encontrado');
+      }
+
+      if (payment.status !== 'observed' && payment.status !== 'rejected') {
+        throw new Error('Solo se pueden volver a enviar pagos observados o rechazados');
+      }
+
+      payment.operationNumber = newOperationNumber;
+      payment.status = 'pending_validation';
+      payment.observationMessage = undefined;
+      await payment.save();
+
+      // Reset the order status to PRE_ORDER
+      await this.salesService.updateOrderStatus(orderId, 'PRE_ORDER');
+
+      return {
+        success: true,
+        message: 'Operación reenviada con éxito para verificación',
+      };
+    } catch (error) {
+      this.logger.error('Error resubmitting manual payment by orderId', error);
       throw new InternalServerErrorException('Error al reenviar la operación de pago');
     }
   }

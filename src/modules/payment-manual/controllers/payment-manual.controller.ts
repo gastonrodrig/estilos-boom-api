@@ -24,4 +24,14 @@ export class PaymentManualController {
     const userId = req.user?.id || '661413a968600d8d73b0a234';
     return this.paymentManualService.resubmitPayment(paymentId, newOperationNumber, userId);
   }
+
+  @Patch('resubmit-by-order/:orderId')
+  async resubmitPaymentByOrderId(
+    @Param('orderId') orderId: string, 
+    @Body('newOperationNumber') newOperationNumber: string,
+    @Req() req: any
+  ) {
+    const userId = req.user?.uid || '661413a968600d8d73b0a234'; // Firebase usually puts UID
+    return this.paymentManualService.resubmitPaymentByOrderId(orderId, newOperationNumber, userId);
+  }
 }
