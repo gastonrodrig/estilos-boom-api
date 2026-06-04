@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Order, OrderDocument } from '../schemas/order.schema';
 import { Invoice, InvoiceDocument } from '../schemas/invoice.schema';
+import { InventoryService } from '../../inventory/service/inventory.service';
 
 @Injectable()
 export class SalesService {
@@ -11,6 +12,7 @@ export class SalesService {
   constructor(
     @InjectModel(Order.name) private readonly orderModel: Model<OrderDocument>,
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<InvoiceDocument>,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   // 1. Crear el PORD (al finalizar checkout manual)
@@ -74,8 +76,42 @@ export class SalesService {
     this.logger.log(`Boleta generada: ${invoiceNumber}`);
 
     // B. Generar Movimiento de Almacén (SALIDA_VENTA)
-    // TODO: Inyectar y llamar al WarehouseService aquí
-    this.logger.log(`Movimiento de almacén pendiente de integración`);
+    try {
+      // 1. Encontrar el almacén central por defecto (ALM-CEN)
+      const warehouses = await this.inventoryService.findAllWarehouses();
+      const defaultWarehouse = warehouses.find(w => w.code === 'ALM-CEN') || warehouses[0];
+
+      if (defaultWarehouse) {
+        // 2. Mapear los items de la orden al formato requerido
+        const documentItems = order.items.map((item: any) => ({
+          id_variant: item.id, // En la compra, 'id' suele ser el _id de la variante
+          quantity_expected: item.quantity,
+          quantity_received: 0,
+          incidence_note: ''
+        }));
+
+        // 3. Crear el documento de almacén en estado PENDIENTE
+        await this.inventoryService.createWarehouseDocument({
+          document_number: `SAL-VENTA-${order.orderNumber.replace('ORD-', '')}`,
+          type: 'SALIDA_VENTA',
+          status: 'PENDIENTE',
+          id_source_warehouse: defaultWarehouse._id.toString(),
+          id_target_warehouse: undefined,
+          id_origin_doc: order._id.toString(),
+          // Como es una venta web automática, usamos el mismo userId (el cliente web) 
+          // o el ID del administrador por defecto si lo prefieres.
+          id_sender_worker: order.userId.toString(), 
+          notes: `Salida de mercadería para la Orden de Venta ${order.orderNumber}`,
+          items: documentItems
+        });
+        
+        this.logger.log(`Documento de almacén (SALIDA_VENTA) creado en estado PENDIENTE para ${order.orderNumber}`);
+      } else {
+        this.logger.error('No se encontró ningún almacén para descontar el stock.');
+      }
+    } catch (error) {
+      this.logger.error(`Error al generar el documento de almacén para ${order.orderNumber}`, error);
+    }
   }
 
   // 5. Obtener pedidos activos del cliente (PORD y ORD en estados tempranos)
