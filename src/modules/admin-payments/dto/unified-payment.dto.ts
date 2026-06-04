@@ -5,7 +5,8 @@ export class UnifiedPaymentDto {
   method: string;
   amount: number;
   operationNumber: string;
-  status: 'PENDIENTE' | 'VERIFICADO' | 'RECHAZADO';
+  status: 'PENDIENTE' | 'VERIFICADO' | 'RECHAZADO' | 'OBSERVADO';
+  observationMessage?: string;
   transactionType: 'MANUAL' | 'MERCADO_PAGO';
   createdAt: Date;
 }

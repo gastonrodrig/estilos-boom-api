@@ -24,7 +24,10 @@ export class PaymentManualTransaction {
   operationNumber: string;
 
   @Prop({ required: true, default: 'pending_validation' })
-  status: string; // 'pending_validation', 'approved', 'rejected'
+  status: string; // 'pending_validation', 'approved', 'rejected', 'observed'
+
+  @Prop()
+  observationMessage?: string; // Motivo por el cual se observó el pago
 }
 
 export const PaymentManualTransactionSchema = SchemaFactory.createForClass(PaymentManualTransaction);

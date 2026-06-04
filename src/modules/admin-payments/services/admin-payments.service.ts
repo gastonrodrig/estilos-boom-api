@@ -44,7 +44,7 @@ export class AdminPaymentsService {
 
     const countManuals = (m: any) => {
       if (m.status === 'pending_validation') pending++;
-      else if (m.status === 'rejected') rejected++;
+      else if (m.status === 'rejected' || m.status === 'observed') rejected++;
       else if (m.status === 'approved') {
         totalVerifiedAmount += m.amount;
         if (new Date(m.updatedAt) >= today) verifiedToday++;
@@ -99,7 +99,7 @@ export class AdminPaymentsService {
     return { success: true, message: 'Pago verificado exitosamente' };
   }
 
-  async rejectManualPayment(id: string) {
+  async rejectManualPayment(id: string, observationMessage?: string) {
     if (!Types.ObjectId.isValid(id)) throw new BadRequestException('ID de pago inválido');
     const payment = await this.manualModel.findById(id);
     if (!payment) throw new NotFoundException('Pago no encontrado');
@@ -107,11 +107,14 @@ export class AdminPaymentsService {
       throw new BadRequestException('Solo se pueden rechazar pagos pendientes');
     }
 
-    payment.status = 'rejected';
+    payment.status = 'observed';
+    if (observationMessage) {
+      payment.observationMessage = observationMessage;
+    }
     await payment.save();
 
-    // TODO: Cuando exista el módulo de pedidos/ventas, actualizar aquí el estado del pedido asociado (ej. a REJECTED o PENDING_PAYMENT).
+    // TODO: Cuando exista el módulo de pedidos/ventas, actualizar aquí el estado del pedido asociado (ej. a OBSERVED).
 
-    return { success: true, message: 'Pago rechazado exitosamente' };
+    return { success: true, message: 'Pago observado exitosamente' };
   }
 }

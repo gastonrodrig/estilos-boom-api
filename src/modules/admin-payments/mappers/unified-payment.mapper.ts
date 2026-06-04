@@ -10,9 +10,10 @@ export class UnifiedPaymentMapper {
       transfer: 'Transferencia',
     };
 
-    let mappedStatus: 'PENDIENTE' | 'VERIFICADO' | 'RECHAZADO' = 'PENDIENTE';
+    let mappedStatus: 'PENDIENTE' | 'VERIFICADO' | 'RECHAZADO' | 'OBSERVADO' = 'PENDIENTE';
     if (transaction.status === 'approved') mappedStatus = 'VERIFICADO';
     if (transaction.status === 'rejected') mappedStatus = 'RECHAZADO';
+    if (transaction.status === 'observed') mappedStatus = 'OBSERVADO';
 
     return {
       id: transaction._id.toString(),
@@ -22,6 +23,7 @@ export class UnifiedPaymentMapper {
       amount: transaction.amount,
       operationNumber: transaction.operationNumber,
       status: mappedStatus,
+      observationMessage: transaction.observationMessage,
       transactionType: 'MANUAL',
       createdAt: transaction.createdAt,
     };

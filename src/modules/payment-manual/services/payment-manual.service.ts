@@ -35,4 +35,29 @@ export class PaymentManualService {
       throw new InternalServerErrorException('Error al procesar el pago manual');
     }
   }
+  async resubmitPayment(paymentId: string, newOperationNumber: string, userId: string) {
+    try {
+      const payment = await this.transactionModel.findOne({ _id: paymentId, userId: new Types.ObjectId(userId) });
+      if (!payment) {
+        throw new Error('Pago no encontrado o no pertenece a este usuario');
+      }
+
+      if (payment.status !== 'observed' && payment.status !== 'rejected') {
+        throw new Error('Solo se pueden volver a enviar pagos observados o rechazados');
+      }
+
+      payment.operationNumber = newOperationNumber;
+      payment.status = 'pending_validation';
+      payment.observationMessage = undefined;
+      await payment.save();
+
+      return {
+        success: true,
+        message: 'Operación reenviada con éxito para verificación',
+      };
+    } catch (error) {
+      this.logger.error('Error resubmitting manual payment', error);
+      throw new InternalServerErrorException('Error al reenviar la operación de pago');
+    }
+  }
 }

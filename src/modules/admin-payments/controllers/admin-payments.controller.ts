@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body } from '@nestjs/common';
 import { AdminPaymentsService } from '../services/admin-payments.service';
 
 @Controller('admin/payments')
@@ -21,7 +21,7 @@ export class AdminPaymentsController {
   }
 
   @Patch('manual/:id/reject')
-  async reject(@Param('id') id: string) {
-    return this.adminPaymentsService.rejectManualPayment(id);
+  async reject(@Param('id') id: string, @Body('observationMessage') observationMessage?: string) {
+    return this.adminPaymentsService.rejectManualPayment(id, observationMessage);
   }
 }
