@@ -93,6 +93,13 @@ export class SalesService {
     }).sort({ createdAt: -1 }).exec();
   }
 
+  // 5.1 Obtener todos los pedidos para el administrador (Órdenes de Venta)
+  async getAdminOrders(): Promise<OrderDocument[]> {
+    return await this.orderModel.find({
+      status: { $in: ['CONFIRMED', 'PREPARING', 'SHIPPED', 'DELIVERED', 'CANCELLED'] }
+    }).sort({ createdAt: -1 }).exec();
+  }
+
   // 6. Obtener un pedido específico por ID (para el detalle)
   async getOrderById(orderId: string, userId: string): Promise<OrderDocument> {
     const isObjectId = Types.ObjectId.isValid(userId);

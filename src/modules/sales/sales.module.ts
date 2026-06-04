@@ -5,6 +5,7 @@ import { Invoice, InvoiceSchema } from './schemas/invoice.schema';
 import { SalesService } from './services/sales.service';
 
 import { OrdersController } from './controllers/orders.controller';
+import { AdminOrdersController } from './controllers/admin-orders.controller';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { OrdersController } from './controllers/orders.controller';
       { name: Invoice.name, schema: InvoiceSchema },
     ]),
   ],
-  controllers: [OrdersController],
+  controllers: [OrdersController, AdminOrdersController],
   providers: [SalesService],
   exports: [SalesService],
 })
