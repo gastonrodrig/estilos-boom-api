@@ -37,6 +37,7 @@
     "class-validator": "^0.14.3",
     "express-basic-auth": "^1.2.1",
     "firebase-admin": "^13.6.0",
+    "gcp-metadata": "^7.0.1",
     "googleapis": "^171.4.0",
     "mercadopago": "^3.0.0",
     "mongoose": "^9.3.3",
