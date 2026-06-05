@@ -23,6 +23,9 @@ import { PaymentManualModule } from './modules/payment-manual/payment-manual.mod
 import { AdminPaymentsModule } from './modules/admin-payments/admin-payments.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
 import { SalesModule } from './modules/sales/sales.module';
+import { FavoritesModule } from './modules/favorites/favorites.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { SuggestionsModule } from './modules/suggestions/suggestions.module';
 
 @Module({
   imports: [
@@ -69,8 +72,12 @@ import { SalesModule } from './modules/sales/sales.module';
     ProductionModule,
     MercadoPagoModule,
     PaymentManualModule,
-    SalesModule
+    SalesModule,
+    FavoritesModule,
+    ReviewsModule,
+    SuggestionsModule
   ],
+
   providers: [
     {
       provide: APP_GUARD,
