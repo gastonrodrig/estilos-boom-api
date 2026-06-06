@@ -15,6 +15,16 @@ import {
 import { LoggingInterceptor } from './core/interceptors';
 import { HttpExceptionFilter } from './core/filters';
 
+process.on('uncaughtException', (err) => {
+  console.error('💥 UNCAUGHT EXCEPTION ON STARTUP:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 UNHANDLED REJECTION ON STARTUP at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 

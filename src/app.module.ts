@@ -36,6 +36,7 @@ import { SuggestionsModule } from './modules/suggestions/suggestions.module';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         uri: configService.get<string>('DATABASE_URL'),
+        serverSelectionTimeoutMS: 5000,
       }),
       inject: [ConfigService],
     }),
@@ -48,6 +49,14 @@ import { SuggestionsModule } from './modules/suggestions/suggestions.module';
           connection: {
             url: redisUrl,
             maxRetriesPerRequest: null,
+            connectTimeout: 5000,
+            retryStrategy: (times: number) => {
+              if (times > 3) {
+                console.error('❌ Redis connection failed after 3 attempts. Stopping reconnect.');
+                return null;
+              }
+              return Math.min(times * 1000, 3000);
+            },
             tls: isSecure ? { rejectUnauthorized: false } : undefined,
           },
         };
