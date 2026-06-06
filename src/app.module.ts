@@ -41,15 +41,17 @@ import { SuggestionsModule } from './modules/suggestions/suggestions.module';
     }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        connection: {
-          url: configService.get<string>('REDIS_URL'),
-          maxRetriesPerRequest: null,
-          tls: {
-            rejectUnauthorized: false
-          }
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const redisUrl = configService.get<string>('REDIS_URL') || '';
+        const isSecure = redisUrl.startsWith('rediss://') || redisUrl.includes('upstash.io');
+        return {
+          connection: {
+            url: redisUrl,
+            maxRetriesPerRequest: null,
+            tls: isSecure ? { rejectUnauthorized: false } : undefined,
+          },
+        };
+      },
       inject: [ConfigService],
     }),
     ThrottlerModule.forRoot([
