@@ -34,7 +34,7 @@ export class SalesService {
     const newOrder = new this.orderModel({
       ...data,
       orderNumber,
-      status: 'CONFIRMED',
+      status: 'PREPARING',
     });
     const savedOrder = await newOrder.save();
     
@@ -48,9 +48,9 @@ export class SalesService {
     const order = await this.orderModel.findById(orderId);
     if (!order) throw new Error('Order not found');
 
-    // Cambiamos el prefijo de PORD a ORD y el estado a CONFIRMED
+    // Cambiamos el prefijo de PORD a ORD y el estado a PREPARING
     order.orderNumber = order.orderNumber.replace('PORD-', 'ORD-');
-    order.status = 'CONFIRMED';
+    order.status = 'PREPARING';
     
     const savedOrder = await order.save();
     
