@@ -125,7 +125,7 @@ export class SalesService {
 
     return await this.orderModel.find({
       ...query,
-      status: { $in: ['PRE_ORDER', 'CONFIRMED', 'OBSERVED'] }
+      status: { $in: ['PRE_ORDER', 'CONFIRMED', 'OBSERVED', 'PREPARING', 'SHIPPED'] }
     }).sort({ createdAt: -1 }).exec();
   }
 
