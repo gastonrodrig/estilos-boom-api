@@ -65,6 +65,8 @@ export class WorkerService {
         throw new ConflictException(errorCodes.USER_ALREADY_EXISTS);
       }
 
+      const assignedRole = (dto.role as Roles) || Roles.WORKER;
+
       const newUser = new this.userModel({
         email:           dto.email,
         first_name:      dto.first_name,
@@ -72,19 +74,18 @@ export class WorkerService {
         phone:           dto.phone           ?? undefined,
         document_type:   dto.document_type   ?? undefined,
         document_number: dto.document_number ?? undefined,
-        role:            Roles.WORKER,
+        role:            assignedRole,
         auth_id:         `manual-${Date.now()}`,
         status:          'Activo',
       });
 
       const savedUser = await newUser.save({ session });
 
-    const newWorker = new this.workerModel({
-      id_user: savedUser._id,
-      // 3. Ajusta los campos según el schema de Worker que definimos
-      role: Roles.WORKER, 
-      employment_status: 'Activo',
-    });
+      const newWorker = new this.workerModel({
+        id_user: savedUser._id,
+        role: assignedRole,
+        employment_status: 'Activo',
+      });
 
       const savedWorker = await newWorker.save({ session });
 
