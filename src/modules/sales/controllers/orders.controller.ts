@@ -13,6 +13,13 @@ export class OrdersController {
     return await this.salesService.getActiveOrders(userId);
   }
 
+  @Get('client/history')
+  @UseGuards(FirebaseAuthGuard)
+  async getHistoryOrders(@Req() req: any) {
+    const userId = req.user.uid;
+    return await this.salesService.getHistoryOrders(userId);
+  }
+
   @Get('client/:id')
   @UseGuards(FirebaseAuthGuard)
   async getOrderById(@Param('id') id: string, @Req() req: any) {

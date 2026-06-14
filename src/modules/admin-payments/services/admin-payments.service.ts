@@ -92,12 +92,12 @@ export class AdminPaymentsService {
       throw new BadRequestException('El número de operación ya fue usado en otro pago aprobado');
     }
 
-    payment.status = 'approved';
-    await payment.save();
-
     if (payment.orderId) {
       await this.salesService.confirmOrder(payment.orderId.toString());
     }
+
+    payment.status = 'approved';
+    await payment.save();
 
     return { success: true, message: 'Pago verificado exitosamente' };
   }

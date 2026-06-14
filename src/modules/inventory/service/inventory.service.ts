@@ -94,6 +94,16 @@ export class InventoryService {
       .exec();
   }
 
+  async getStockForWarehouse(warehouseId: string, variantId: string): Promise<number> {
+    const stockRecord = await this.stockModel.findOne({
+      id_warehouse: new Types.ObjectId(warehouseId),
+      id_variant: new Types.ObjectId(variantId)
+    }).exec();
+    
+    if (!stockRecord) return 0;
+    return Math.max(0, (stockRecord.physical_stock ?? 0) - (stockRecord.reserved_stock ?? 0));
+  }
+
   async getStockByMultipleVariants(variantIds: string[]) {
     const objectIds = variantIds.map((id) => new Types.ObjectId(id));
     return this.stockModel

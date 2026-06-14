@@ -20,6 +20,16 @@ class ItemDto {
   @ApiProperty()
   @IsNumber()
   unit_price: number;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  size?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  color?: string;
 }
 
 export class CreatePreferenceDto {

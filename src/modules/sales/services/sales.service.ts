@@ -1,10 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Order, OrderDocument } from '../schemas/order.schema';
 import { Invoice, InvoiceDocument } from '../schemas/invoice.schema';
 import { InventoryService } from '../../inventory/service/inventory.service';
 import { User, UserDocument } from '../../user/schemas/user.schema';
+import { ProductVariant, ProductVariantDocument } from '../../product/schemas/product-variant.schema';
 
 @Injectable()
 export class SalesService {
@@ -15,10 +16,59 @@ export class SalesService {
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<InvoiceDocument>,
     private readonly inventoryService: InventoryService,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(ProductVariant.name) private readonly variantModel: Model<ProductVariantDocument>,
   ) {}
+
+  async validateOrderStock(items: any[]) {
+    // 1. Encontrar el almacén central por defecto (ALM-CEN)
+    const warehouses = await this.inventoryService.findAllWarehouses();
+    const defaultWarehouse = warehouses.find(w => w.code === 'ALM-CEN') || warehouses[0];
+    if (!defaultWarehouse) {
+      throw new Error('Almacén central no configurado en el sistema.');
+    }
+
+    // 2. Para cada artículo de la orden, verificar disponibilidad
+    for (const item of items) {
+      let variantId = item.id;
+      if (!variantId) continue;
+
+      // Robust variant resolution: if item.id is a product ID, find the variant ID using size and color
+      if (Types.ObjectId.isValid(variantId)) {
+        const variantExists = await this.variantModel.exists({ _id: new Types.ObjectId(variantId) });
+        if (!variantExists) {
+          const colorName = typeof item.color === 'object' ? item.color?.name : item.color;
+          const resolvedVariant = await this.variantModel.findOne({
+            id_product: new Types.ObjectId(variantId),
+            size: item.size,
+            'color.name': new RegExp(`^${colorName}$`, 'i')
+          }).lean().exec();
+          
+          if (resolvedVariant) {
+            variantId = resolvedVariant._id.toString();
+          } else {
+            throw new BadRequestException(
+              `El producto "${item.name}" con Talla: ${item.size || 'N/A'} y Color: ${colorName || 'N/A'} no existe como variante en el catálogo.`
+            );
+          }
+        }
+      }
+
+      const available = await this.inventoryService.getStockForWarehouse(
+        defaultWarehouse._id.toString(),
+        variantId
+      );
+
+      if (available < item.quantity) {
+        throw new BadRequestException(
+          `Stock insuficiente para el producto "${item.name}" (Talla: ${item.size || 'N/A'}). Disponible: ${available}, solicitado: ${item.quantity}.`
+        );
+      }
+    }
+  }
 
   // 1. Crear el PORD (al finalizar checkout manual)
   async createPreOrder(data: any): Promise<OrderDocument> {
+    await this.validateOrderStock(data.items);
     const orderNumber = `PORD-${Math.floor(1000 + Math.random() * 9000)}`; // Temporal para pruebas
     const newOrder = new this.orderModel({
       ...data,
@@ -30,6 +80,7 @@ export class SalesService {
 
   // 2. Crear la ORD directa (para Mercado Pago)
   async createConfirmedOrder(data: any): Promise<OrderDocument> {
+    await this.validateOrderStock(data.items);
     const orderNumber = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
     const newOrder = new this.orderModel({
       ...data,
@@ -47,6 +98,8 @@ export class SalesService {
   async confirmOrder(orderId: string): Promise<OrderDocument> {
     const order = await this.orderModel.findById(orderId);
     if (!order) throw new Error('Order not found');
+
+    await this.validateOrderStock(order.items);
 
     // Cambiamos el prefijo de PORD a ORD y el estado a PREPARING
     order.orderNumber = order.orderNumber.replace('PORD-', 'ORD-');
@@ -84,13 +137,31 @@ export class SalesService {
       const defaultWarehouse = warehouses.find(w => w.code === 'ALM-CEN') || warehouses[0];
 
       if (defaultWarehouse) {
-        // 2. Mapear los items de la orden al formato requerido
-        const documentItems = order.items.map((item: any) => ({
-          id_variant: item.id, // En la compra, 'id' suele ser el _id de la variante
-          quantity_expected: item.quantity,
-          quantity_received: 0,
-          incidence_note: ''
-        }));
+        // 2. Mapear los items de la orden al formato requerido, resolviendo las variantes reales
+        const documentItems = [];
+        for (const item of order.items) {
+          let variantId = item.id;
+          if (Types.ObjectId.isValid(item.id)) {
+            const variantExists = await this.variantModel.exists({ _id: new Types.ObjectId(item.id) });
+            if (!variantExists) {
+              const colorName = typeof item.color === 'object' ? item.color?.name : item.color;
+              const resolvedVariant = await this.variantModel.findOne({
+                id_product: new Types.ObjectId(item.id),
+                size: item.size,
+                'color.name': new RegExp(`^${colorName}$`, 'i')
+              }).lean().exec();
+              if (resolvedVariant) {
+                variantId = resolvedVariant._id.toString();
+              }
+            }
+          }
+          documentItems.push({
+            id_variant: new Types.ObjectId(variantId),
+            quantity_expected: item.quantity,
+            quantity_received: 0,
+            incidence_note: ''
+          });
+        }
 
         // 3. Crear el documento de almacén en estado PENDIENTE
         await this.inventoryService.createWarehouseDocument({
@@ -138,6 +209,31 @@ export class SalesService {
     return await this.orderModel.find({
       ...query,
       status: { $in: ['PRE_ORDER', 'CONFIRMED', 'OBSERVED', 'PREPARING', 'SHIPPED'] }
+    }).sort({ createdAt: -1 }).exec();
+  }
+
+  // 5.2 Obtener historial de pedidos del cliente (DELIVERED y CANCELLED)
+  async getHistoryOrders(userId: string): Promise<OrderDocument[]> {
+    let queryUserId: Types.ObjectId;
+    let query;
+
+    if (Types.ObjectId.isValid(userId)) {
+      queryUserId = new Types.ObjectId(userId);
+      query = { userId: queryUserId };
+    } else {
+      const user = await this.userModel.findOne({ auth_id: userId }).lean();
+      if (user) {
+        queryUserId = user._id as Types.ObjectId;
+        query = { userId: queryUserId };
+      } else {
+        // Fallback for development/guest test IDs
+        query = { userId: { $in: [new Types.ObjectId('661413a968600d8d73b0a234'), new Types.ObjectId('65f1a2b3c4d5e6f7a8b9c0d1')] } };
+      }
+    }
+
+    return await this.orderModel.find({
+      ...query,
+      status: { $in: ['DELIVERED', 'CANCELLED'] }
     }).sort({ createdAt: -1 }).exec();
   }
 

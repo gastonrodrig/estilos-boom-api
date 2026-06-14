@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, NotFoundException, HttpException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { MercadoPagoTransactionDocument } from '../schemas/mercadopago-transaction.schema';
@@ -27,6 +27,18 @@ export class MercadoPagoService {
   }
 
   async createPreference(dto: CreatePreferenceDto, userId: string) {
+    // 🛡️ Validar disponibilidad de stock antes de generar preferencia
+    const stockItems = (dto.items || [])
+      .filter(item => item.id !== 'DELIVERY')
+      .map(item => ({
+        id: item.id,
+        quantity: item.quantity,
+        name: item.title,
+        size: item.size || '',
+        color: item.color || ''
+      }));
+    await this.salesService.validateOrderStock(stockItems);
+
     const accessToken = this.configService.get<string>('MP_ACCESS_TOKEN');
     this.logger.log(`[DEBUG] MP_ACCESS_TOKEN existe: ${!!accessToken}`);
     this.logger.log(`[DEBUG] Body recibido para preferencia: ${JSON.stringify(dto)}`);
@@ -162,6 +174,9 @@ export class MercadoPagoService {
       };
     } catch (error) {
       this.logger.error('Error processing MercadoPago payment', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new InternalServerErrorException('Error al procesar el pago');
     }
   }
