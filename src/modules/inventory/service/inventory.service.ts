@@ -127,7 +127,7 @@ export class InventoryService {
     idWorker: Types.ObjectId,
     type: 'ENTRADA' | 'SALIDA',
     quantity: number,
-    reason: 'COMPRA' | 'VENTA' | 'TRANSFERENCIA' | 'AJUSTE'
+    reason: 'COMPRA' | 'VENTA' | 'TRANSFERENCIA' | 'AJUSTE' | 'PRODUCCION'
   ): Promise<InventoryMovementDocument> {
     const stockRecord = await this.getOrCreateStockRecord(idWarehouse, idVariant);
     const previousStock = stockRecord.physical_stock;
@@ -269,6 +269,11 @@ export class InventoryService {
         await this.applyStockChange(doc.id_target_warehouse, item.id_variant, doc._id as Types.ObjectId, idWorker, 'ENTRADA', finalQty, 'COMPRA');
       } 
       
+      // Caso E: Es un ingreso por producción propia
+      else if (doc.type === 'INGRESO_PRODUCCION') {
+        await this.applyStockChange(doc.id_target_warehouse, item.id_variant, doc._id as Types.ObjectId, idWorker, 'ENTRADA', finalQty, 'PRODUCCION');
+      }
+
       // Caso C: Es una salida por venta a un cliente
       else if (doc.type === 'SALIDA_VENTA') {
         await this.applyStockChange(doc.id_source_warehouse, item.id_variant, doc._id as Types.ObjectId, doc.id_sender_worker, 'SALIDA', finalQty, 'VENTA');
@@ -375,6 +380,37 @@ export class InventoryService {
         }
       } catch (err) {
         console.error('Error al actualizar flujo de OC tras recepción:', err);
+      }
+    }
+
+    // Si es un ingreso por producción, actualizamos la Orden de Producción asociada a 'COMPLETADA'
+    if (doc.type === 'INGRESO_PRODUCCION' && doc.id_origin_doc) {
+      try {
+        const productionOrderModel = this.warehouseDocModel.db.model('ProductionOrder') as any;
+        const order = await productionOrderModel.findById(doc.id_origin_doc);
+        if (order && order.status !== 'COMPLETADA') {
+          order.status = 'COMPLETADA';
+          order.history.push({ status: 'COMPLETADA', date: new Date() });
+          
+          // Registrar en kárdex/documento observaciones si existiesen incidencias
+          let qtyIncidences = 0;
+          let notesList: string[] = [];
+          for (const item of doc.items) {
+            const diff = Math.max(0, (item.quantity_expected || 0) - (item.quantity_received || 0));
+            qtyIncidences += diff;
+            if (item.incidence_note && item.incidence_note.trim() !== '') {
+              notesList.push(`${item.id_variant}: ${item.incidence_note}`);
+            }
+          }
+
+          if (qtyIncidences > 0) {
+            order.observations = (order.observations ? order.observations + ' | ' : '') + `Incidencias de recepción: ${notesList.join(', ')}`;
+          }
+
+          await order.save();
+        }
+      } catch (err) {
+        console.error('Error al actualizar flujo de orden de producción tras recepción:', err);
       }
     }
 

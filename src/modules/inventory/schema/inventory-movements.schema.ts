@@ -32,7 +32,7 @@ export class InventoryMovement {
   @Prop({ required: true })
   new_stock: number; // Stock físico después de la acción
 
-  @Prop({ required: true, enum: ['COMPRA', 'VENTA', 'TRANSFERENCIA', 'AJUSTE'] })
+  @Prop({ required: true, enum: ['COMPRA', 'VENTA', 'TRANSFERENCIA', 'AJUSTE', 'PRODUCCION'] })
   reason: string;
 }
 
