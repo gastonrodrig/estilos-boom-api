@@ -352,6 +352,16 @@ export class InventoryService {
       }
     }
 
+    // Si es una salida por venta, actualizamos la orden de venta asociada a 'PREPARING'
+    if (doc.type === 'SALIDA_VENTA' && doc.id_origin_doc) {
+      try {
+        const orderModel = this.warehouseDocModel.db.model('Order');
+        await orderModel.findByIdAndUpdate(doc.id_origin_doc, { status: 'PREPARING' });
+      } catch (err) {
+        console.error('Error al actualizar flujo de orden tras despacho de venta:', err);
+      }
+    }
+
     return savedDoc;
   }
 
