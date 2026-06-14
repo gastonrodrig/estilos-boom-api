@@ -252,10 +252,13 @@ export class InventoryService {
 
       // Caso A: Es una transferencia entre sedes propias
       if (doc.type === 'TRANSFERENCIA') {
-        // 1. Despacho (Salida del origen)
-        await this.applyStockChange(doc.id_source_warehouse, item.id_variant, doc._id as Types.ObjectId, doc.id_sender_worker, 'SALIDA', finalQty, 'TRANSFERENCIA');
-        // 2. Recepción (Entrada al destino)
-        await this.applyStockChange(doc.id_target_warehouse, item.id_variant, doc._id as Types.ObjectId, idWorker, 'ENTRADA', finalQty, 'TRANSFERENCIA');
+        if (doc.status === 'PENDIENTE') {
+          // 1. Despacho (Salida del origen)
+          await this.applyStockChange(doc.id_source_warehouse, item.id_variant, doc._id as Types.ObjectId, idWorker, 'SALIDA', finalQty, 'TRANSFERENCIA');
+        } else if (doc.status === 'EN_TRANSITO') {
+          // 2. Recepción (Entrada al destino)
+          await this.applyStockChange(doc.id_target_warehouse, item.id_variant, doc._id as Types.ObjectId, idWorker, 'ENTRADA', finalQty, 'TRANSFERENCIA');
+        }
       } 
       
       // Caso B: Es un ingreso por compra a proveedor
@@ -276,9 +279,14 @@ export class InventoryService {
       }
     }
 
-    // Cerrar el documento administrativamente
-    doc.status = 'COMPLETADO';
-    doc.id_receiver_worker = idWorker;
+    // Cambiar el estado según corresponda en transferencias de dos pasos
+    if (doc.type === 'TRANSFERENCIA' && doc.status === 'PENDIENTE') {
+      doc.status = 'EN_TRANSITO';
+      doc.id_sender_worker = idWorker;
+    } else {
+      doc.status = 'COMPLETADO';
+      doc.id_receiver_worker = idWorker;
+    }
     
     const savedDoc = await doc.save();
 
