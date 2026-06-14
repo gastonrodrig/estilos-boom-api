@@ -68,15 +68,18 @@ export class InventoryService {
     idWarehouse: Types.ObjectId, 
     idVariant: Types.ObjectId
   ): Promise<WarehouseStockDocument> {
+    const warehouseIdObj = new Types.ObjectId(idWarehouse.toString());
+    const variantIdObj = new Types.ObjectId(idVariant.toString());
+
     const stockRecord = await this.stockModel.findOne({ 
-      id_warehouse: idWarehouse, 
-      id_variant: idVariant 
+      id_warehouse: warehouseIdObj, 
+      id_variant: variantIdObj 
     }).exec();
 
     if (!stockRecord) {
       const newStock = new this.stockModel({
-        id_warehouse: idWarehouse,
-        id_variant: idVariant,
+        id_warehouse: warehouseIdObj,
+        id_variant: variantIdObj,
         physical_stock: 0,
         reserved_stock: 0,
         location_rack: 'Sin Asignar'
@@ -129,7 +132,12 @@ export class InventoryService {
     quantity: number,
     reason: 'COMPRA' | 'VENTA' | 'TRANSFERENCIA' | 'AJUSTE' | 'PRODUCCION'
   ): Promise<InventoryMovementDocument> {
-    const stockRecord = await this.getOrCreateStockRecord(idWarehouse, idVariant);
+    const warehouseIdObj = new Types.ObjectId(idWarehouse.toString());
+    const variantIdObj = new Types.ObjectId(idVariant.toString());
+    const documentIdObj = idDocument ? new Types.ObjectId(idDocument.toString()) : null;
+    const workerIdObj = idWorker ? new Types.ObjectId(idWorker.toString()) : null;
+
+    const stockRecord = await this.getOrCreateStockRecord(warehouseIdObj, variantIdObj);
     const previousStock = stockRecord.physical_stock;
 
     let newStock = previousStock;
@@ -149,10 +157,10 @@ export class InventoryService {
 
     // Grabamos la línea inmutable en el Kárdex
     const movement = new this.movementModel({
-      id_variant: idVariant,
-      id_warehouse: idWarehouse,
-      id_document: idDocument,
-      id_worker: idWorker,
+      id_variant: variantIdObj,
+      id_warehouse: warehouseIdObj,
+      id_document: documentIdObj,
+      id_worker: workerIdObj,
       type,
       quantity,
       previous_stock: previousStock,

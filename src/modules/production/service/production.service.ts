@@ -405,12 +405,15 @@ export class ProductionService {
       }
 
       // 2. Generar el WarehouseDocument en estado PENDIENTE
-      const documentItems = order.base_items.map(item => ({
-        id_variant: item.id_variant?._id || item.id_variant,
-        quantity_expected: Number(item.quantity),
-        quantity_received: 0,
-        incidence_note: ''
-      }));
+      const documentItems = order.base_items.map(item => {
+        const variantId = item.id_variant?._id || item.id_variant;
+        return {
+          id_variant: new Types.ObjectId(variantId.toString()),
+          quantity_expected: Number(item.quantity),
+          quantity_received: 0,
+          incidence_note: ''
+        };
+      });
 
       // Evitar duplicados
       const existingDoc = await warehouseDocModel.findOne({
