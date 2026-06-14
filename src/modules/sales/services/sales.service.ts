@@ -187,4 +187,14 @@ export class SalesService {
   async updateOrderStatus(orderId: string, status: string): Promise<OrderDocument | null> {
     return await this.orderModel.findByIdAndUpdate(orderId, { status }, { new: true }).exec();
   }
+
+  // 10. Confirmar entrega de parte del cliente
+  async confirmDelivery(orderId: string, userId: string): Promise<OrderDocument> {
+    const order = await this.getOrderById(orderId, userId);
+    if (order.status !== 'SHIPPED') {
+      throw new Error('Solo se puede confirmar la entrega de pedidos en camino.');
+    }
+    order.status = 'DELIVERED';
+    return await order.save();
+  }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Req, Param } from '@nestjs/common';
+import { Controller, Get, Patch, UseGuards, Req, Param, BadRequestException, NotFoundException } from '@nestjs/common';
 import { SalesService } from '../services/sales.service';
 import { FirebaseAuthGuard } from '../../../auth/guards/firebase-auth.guard';
 
@@ -18,5 +18,19 @@ export class OrdersController {
   async getOrderById(@Param('id') id: string, @Req() req: any) {
     const userId = req.user.uid;
     return await this.salesService.getOrderById(id, userId);
+  }
+
+  @Patch('client/:id/confirm-delivery')
+  @UseGuards(FirebaseAuthGuard)
+  async confirmDelivery(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user.uid;
+    try {
+      return await this.salesService.confirmDelivery(id, userId);
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        throw new NotFoundException(error.message);
+      }
+      throw new BadRequestException(error.message);
+    }
   }
 }
