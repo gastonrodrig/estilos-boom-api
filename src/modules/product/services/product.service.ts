@@ -21,6 +21,8 @@ import { WarehouseStock, WarehouseStockDocument } from '../../warehouse/schema/w
 
 @Injectable()
 export class ProductService {
+  private centralWarehouseId: Types.ObjectId | null = null;
+
   constructor(
     @InjectModel(Product.name)
     private productModel: Model<ProductDocument>,
@@ -50,9 +52,14 @@ export class ProductService {
       .lean()
       .exec();
 
-    // 1. Encontrar el almacén central por defecto (ALM-CEN)
-    const centralWarehouse = await this.warehouseModel.findOne({ code: 'ALM-CEN' }).lean().exec();
-    const centralWarehouseId = centralWarehouse ? centralWarehouse._id : null;
+    // 1. Encontrar el almacén central por defecto (ALM-CEN) con caché local
+    if (!this.centralWarehouseId) {
+      const centralWarehouse = await this.warehouseModel.findOne({ code: 'ALM-CEN' }).lean().exec();
+      if (centralWarehouse) {
+        this.centralWarehouseId = centralWarehouse._id as Types.ObjectId;
+      }
+    }
+    const centralWarehouseId = this.centralWarehouseId;
 
     // 2. Si hay almacén, buscar los stocks de todas las variantes en ese almacén
     let stockMap = new Map<string, number>();
@@ -99,8 +106,12 @@ export class ProductService {
   }
 
   async findAll(query: any = {}) {
-    const { category, section, maxPrice, colors, limit, offset, gender, season } = query;
+    const { category, section, maxPrice, colors, limit, offset, gender, season, origin_type } = query;
     const filter: any = { is_active: true };
+
+    if (origin_type) {
+      filter.origin_type = origin_type;
+    }
 
     if (gender) {
       filter.gender = gender.toUpperCase();

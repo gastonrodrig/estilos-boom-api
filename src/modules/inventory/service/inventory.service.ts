@@ -109,6 +109,7 @@ export class InventoryService {
     return this.stockModel
       .find({ id_variant: { $in: objectIds } })
       .populate('id_warehouse', 'name code')
+      .lean()
       .exec();
   }
 
@@ -172,6 +173,7 @@ export class InventoryService {
         path: 'id_document',
         select: 'document_number type'
       })
+      .lean()
       .exec();
   }
 
@@ -186,6 +188,7 @@ export class InventoryService {
         select: 'sku_variant size color',
         populate: { path: 'id_product', select: 'name' },
       })
+      .lean()
       .exec();
   }
 
