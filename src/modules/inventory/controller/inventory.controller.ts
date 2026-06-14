@@ -139,6 +139,7 @@ export class InventoryController {
             },
           },
         },
+        trackingNumber: { type: 'string' },
       },
     },
   })
@@ -149,8 +150,9 @@ export class InventoryController {
     @Param('id') id: string,
     @Body('id_worker') workerId: string,
     @Body('items') items: { id_variant: string; quantity_received: number; incidence_note?: string }[],
+    @Body('trackingNumber') trackingNumber?: string,
   ) {
-    return this.inventoryService.processWarehouseDocument(id, workerId, items);
+    return this.inventoryService.processWarehouseDocument(id, workerId, items, trackingNumber);
   }
 
   @ApiOperation({ summary: 'Subir archivos adjuntos de evidencia a un documento de almacén' })

@@ -211,7 +211,12 @@ export class InventoryService {
    * El almacenero ejecuta la acción física y da la conformidad del documento.
    * Aquí ocurre el impacto real en el stock físico y kárdex.
    */
-  async processWarehouseDocument(documentId: string, workerId: string, itemsEvaluated: { id_variant: string, quantity_received: number, incidence_note?: string }[]) {
+  async processWarehouseDocument(
+    documentId: string,
+    workerId: string,
+    itemsEvaluated: { id_variant: string, quantity_received: number, incidence_note?: string }[],
+    trackingNumber?: string,
+  ) {
     const doc = await this.warehouseDocModel.findById(documentId);
     if (!doc) throw new NotFoundException('Documento de almacén no encontrado.');
     if (doc.status === 'COMPLETADO' || doc.status === 'CANCELADO') {
@@ -352,11 +357,18 @@ export class InventoryService {
       }
     }
 
-    // Si es una salida por venta, actualizamos la orden de venta asociada a 'PREPARING'
+    // Si es una salida por venta, actualizamos la orden de venta asociada a 'SHIPPED' y guardamos evidencias
     if (doc.type === 'SALIDA_VENTA' && doc.id_origin_doc) {
       try {
         const orderModel = this.warehouseDocModel.db.model('Order');
-        await orderModel.findByIdAndUpdate(doc.id_origin_doc, { status: 'PREPARING' });
+        const updateData: any = { status: 'SHIPPED' };
+        if (trackingNumber) {
+          updateData.trackingNumber = trackingNumber;
+        }
+        if (doc.attachments && doc.attachments.length > 0) {
+          updateData.shippingEvidenceUrl = doc.attachments[0];
+        }
+        await orderModel.findByIdAndUpdate(doc.id_origin_doc, updateData);
       } catch (err) {
         console.error('Error al actualizar flujo de orden tras despacho de venta:', err);
       }
