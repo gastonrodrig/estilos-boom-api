@@ -4,6 +4,7 @@ import { Order, OrderSchema } from './schemas/order.schema';
 import { Invoice, InvoiceSchema } from './schemas/invoice.schema';
 import { InventoryModule } from '../inventory/inventory.module';
 import { SalesService } from './services/sales.service';
+import { UserModule } from '../user/user.module';
 
 import { OrdersController } from './controllers/orders.controller';
 import { AdminOrdersController } from './controllers/admin-orders.controller';
@@ -15,6 +16,7 @@ import { AdminOrdersController } from './controllers/admin-orders.controller';
       { name: Invoice.name, schema: InvoiceSchema },
     ]),
     InventoryModule,
+    UserModule,
   ],
   controllers: [OrdersController, AdminOrdersController],
   providers: [SalesService],

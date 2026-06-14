@@ -7,6 +7,7 @@ import { ProcessPaymentDto } from '../dto/process-payment.dto';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 import { ConfigService } from '@nestjs/config';
 import { SalesService } from '../../sales/services/sales.service';
+import { User, UserDocument } from '../../user/schemas/user.schema';
 
 @Injectable()
 export class MercadoPagoService {
@@ -17,6 +18,7 @@ export class MercadoPagoService {
     @InjectModel('MercadoPagoTransaction') private transactionModel: Model<MercadoPagoTransactionDocument>,
     private readonly configService: ConfigService,
     private readonly salesService: SalesService,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {
     this.client = new MercadoPagoConfig({
       accessToken: this.configService.get<string>('MP_ACCESS_TOKEN') || '',
@@ -95,8 +97,17 @@ export class MercadoPagoService {
 
       const response = await payment.create({ body });
 
-      const isObjectId = Types.ObjectId.isValid(userId);
-      const queryUserId = isObjectId ? new Types.ObjectId(userId) : new Types.ObjectId('65f1a2b3c4d5e6f7a8b9c0d1');
+      let queryUserId: Types.ObjectId;
+      if (Types.ObjectId.isValid(userId)) {
+        queryUserId = new Types.ObjectId(userId);
+      } else {
+        const user = await this.userModel.findOne({ auth_id: userId }).lean();
+        if (user) {
+          queryUserId = user._id as Types.ObjectId;
+        } else {
+          queryUserId = new Types.ObjectId('65f1a2b3c4d5e6f7a8b9c0d1');
+        }
+      }
 
       // Generate PORD
       const orderData = {

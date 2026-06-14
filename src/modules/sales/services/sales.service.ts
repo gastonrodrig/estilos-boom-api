@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Order, OrderDocument } from '../schemas/order.schema';
 import { Invoice, InvoiceDocument } from '../schemas/invoice.schema';
 import { InventoryService } from '../../inventory/service/inventory.service';
+import { User, UserDocument } from '../../user/schemas/user.schema';
 
 @Injectable()
 export class SalesService {
@@ -13,6 +14,7 @@ export class SalesService {
     @InjectModel(Order.name) private readonly orderModel: Model<OrderDocument>,
     @InjectModel(Invoice.name) private readonly invoiceModel: Model<InvoiceDocument>,
     private readonly inventoryService: InventoryService,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
 
   // 1. Crear el PORD (al finalizar checkout manual)
@@ -116,12 +118,22 @@ export class SalesService {
 
   // 5. Obtener pedidos activos del cliente (PORD y ORD en estados tempranos)
   async getActiveOrders(userId: string): Promise<OrderDocument[]> {
-    const isObjectId = Types.ObjectId.isValid(userId);
-    
-    // Temporary fallback for Firebase UIDs while auth integration is complete
-    const query = isObjectId 
-      ? { userId: new Types.ObjectId(userId) }
-      : { userId: { $in: [new Types.ObjectId('661413a968600d8d73b0a234'), new Types.ObjectId('65f1a2b3c4d5e6f7a8b9c0d1')] } };
+    let queryUserId: Types.ObjectId;
+    let query;
+
+    if (Types.ObjectId.isValid(userId)) {
+      queryUserId = new Types.ObjectId(userId);
+      query = { userId: queryUserId };
+    } else {
+      const user = await this.userModel.findOne({ auth_id: userId }).lean();
+      if (user) {
+        queryUserId = user._id as Types.ObjectId;
+        query = { userId: queryUserId };
+      } else {
+        // Fallback for development/guest test IDs
+        query = { userId: { $in: [new Types.ObjectId('661413a968600d8d73b0a234'), new Types.ObjectId('65f1a2b3c4d5e6f7a8b9c0d1')] } };
+      }
+    }
 
     return await this.orderModel.find({
       ...query,
@@ -138,10 +150,18 @@ export class SalesService {
 
   // 6. Obtener un pedido específico por ID (para el detalle)
   async getOrderById(orderId: string, userId: string): Promise<OrderDocument> {
-    const isObjectId = Types.ObjectId.isValid(userId);
-    const query = isObjectId 
-      ? { userId: new Types.ObjectId(userId) }
-      : { userId: { $in: [new Types.ObjectId('661413a968600d8d73b0a234'), new Types.ObjectId('65f1a2b3c4d5e6f7a8b9c0d1')] } };
+    let query;
+
+    if (Types.ObjectId.isValid(userId)) {
+      query = { userId: new Types.ObjectId(userId) };
+    } else {
+      const user = await this.userModel.findOne({ auth_id: userId }).lean();
+      if (user) {
+        query = { userId: user._id };
+      } else {
+        query = { userId: { $in: [new Types.ObjectId('661413a968600d8d73b0a234'), new Types.ObjectId('65f1a2b3c4d5e6f7a8b9c0d1')] } };
+      }
+    }
 
     const order = await this.orderModel.findOne({
       _id: new Types.ObjectId(orderId),

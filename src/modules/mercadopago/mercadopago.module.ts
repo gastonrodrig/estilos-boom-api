@@ -4,6 +4,7 @@ import { MercadoPagoController } from './controllers/mercadopago.controller';
 import { MercadoPagoService } from './services/mercadopago.service';
 import { MercadoPagoTransaction, MercadoPagoTransactionSchema } from './schemas/mercadopago-transaction.schema';
 import { SalesModule } from '../sales/sales.module';
+import { UserModule } from '../user/user.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { SalesModule } from '../sales/sales.module';
       { name: MercadoPagoTransaction.name, schema: MercadoPagoTransactionSchema },
     ]),
     SalesModule,
+    UserModule,
   ],
   controllers: [MercadoPagoController],
   providers: [MercadoPagoService],

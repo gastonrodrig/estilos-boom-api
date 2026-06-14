@@ -70,4 +70,12 @@ export class CartController {
         const authId = this.getAuthId(req);
         return this.cartService.mergeCart(authId, dto);
     }
+
+    @Delete('clear')
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Limpiar el carrito del usuario autenticado' })
+    clearCart(@Req() req: Request) {
+        const authId = this.getAuthId(req);
+        return this.cartService.clearCart(authId);
+    }
 }
