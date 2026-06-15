@@ -178,6 +178,11 @@ export class ProductionService {
 
     if (status === 'CONTROL_CALIDAD') {
       await this.createWarehouseDocumentForProduction(order);
+      order.botState = 'COMPLETED';
+    } else if (status === 'COMPLETADA') {
+      order.botState = 'COMPLETED';
+    } else if (status === 'RECHAZADA') {
+      order.botState = 'IDLE';
     }
 
     await order.save();
@@ -195,6 +200,7 @@ export class ProductionService {
     if (step === 'ENTREGA') {
       order.status = 'CONTROL_CALIDAD';
       order.history.push({ status: 'CONTROL_CALIDAD', date: new Date() });
+      order.botState = 'COMPLETED';
       await this.createWarehouseDocumentForProduction(order);
     }
 
@@ -212,10 +218,14 @@ export class ProductionService {
     const incomingText = body.Body.trim().toUpperCase();
     const fromPhone = body.From.replace('whatsapp:', '');
 
-    const order = await this.productionOrderModel.findOne({ 
-      workshopPhone: fromPhone, 
-      botState: { $nin: ['IDLE', 'COMPLETED'] } 
-    });
+    const order = await this.productionOrderModel.findOne(
+      { 
+        workshopPhone: fromPhone, 
+        botState: { $nin: ['IDLE', 'COMPLETED'] } 
+      },
+      null,
+      { sort: { created_at: -1 } }
+    );
 
     if (!order) {
       responseTwiml.message("No tienes órdenes activas o pendientes de actualización en este momento.");
