@@ -101,4 +101,16 @@ export class CreateProductDto {
   @IsString()
   @IsNotEmpty()
   variants: string;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  is_active?: boolean;
+
+  @ApiProperty({ example: false, required: false })
+  @IsOptional()
+  is_best_seller?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  is_new_in?: boolean;
 }
