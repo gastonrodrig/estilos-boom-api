@@ -1,9 +1,10 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, HttpException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { PaymentManualTransaction, PaymentManualTransactionDocument } from '../schemas/payment-manual-transaction.schema';
 import { ProcessManualPaymentDto } from '../dto/process-manual-payment.dto';
 import { SalesService } from '../../sales/services/sales.service';
+import { User, UserDocument } from '../../user/schemas/user.schema';
 
 @Injectable()
 export class PaymentManualService {
@@ -12,12 +13,22 @@ export class PaymentManualService {
   constructor(
     @InjectModel(PaymentManualTransaction.name) private transactionModel: Model<PaymentManualTransactionDocument>,
     private readonly salesService: SalesService,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
 
   async processPayment(dto: ProcessManualPaymentDto, userId: string) {
     try {
-      const isObjectId = Types.ObjectId.isValid(userId);
-      const queryUserId = isObjectId ? new Types.ObjectId(userId) : new Types.ObjectId('661413a968600d8d73b0a234');
+      let queryUserId: Types.ObjectId;
+      if (Types.ObjectId.isValid(userId)) {
+        queryUserId = new Types.ObjectId(userId);
+      } else {
+        const user = await this.userModel.findOne({ auth_id: userId }).lean();
+        if (user) {
+          queryUserId = user._id as Types.ObjectId;
+        } else {
+          queryUserId = new Types.ObjectId('661413a968600d8d73b0a234');
+        }
+      }
 
       const newTransaction = new this.transactionModel({
         userId: queryUserId,
@@ -51,12 +62,26 @@ export class PaymentManualService {
       };
     } catch (error) {
       this.logger.error('Error processing manual payment', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
       throw new InternalServerErrorException('Error al procesar el pago manual');
     }
   }
   async resubmitPayment(paymentId: string, newOperationNumber: string, userId: string) {
     try {
-      const payment = await this.transactionModel.findOne({ _id: paymentId, userId: new Types.ObjectId(userId) });
+      let queryUserId: Types.ObjectId;
+      if (Types.ObjectId.isValid(userId)) {
+        queryUserId = new Types.ObjectId(userId);
+      } else {
+        const user = await this.userModel.findOne({ auth_id: userId }).lean();
+        if (user) {
+          queryUserId = user._id as Types.ObjectId;
+        } else {
+          queryUserId = new Types.ObjectId('661413a968600d8d73b0a234');
+        }
+      }
+      const payment = await this.transactionModel.findOne({ _id: paymentId, userId: queryUserId });
       if (!payment) {
         throw new Error('Pago no encontrado o no pertenece a este usuario');
       }

@@ -93,6 +93,7 @@ export class ProductController {
     const createProductDto: CreateProductDto = {
       ...body,
       base_price: Number(body.base_price),
+      is_active: body.is_active === undefined ? true : (body.is_active === 'true' || body.is_active === true),
       is_best_seller: body.is_best_seller === 'true' || body.is_best_seller === true,
       is_new_in: body.is_new_in === 'true' || body.is_new_in === true,
       variants: body.variants, // El servicio se encargará de parsearlo/validarlo de forma interna

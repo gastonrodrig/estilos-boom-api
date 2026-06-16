@@ -4,6 +4,7 @@ import { PaymentManualController } from './controllers/payment-manual.controller
 import { PaymentManualService } from './services/payment-manual.service';
 import { PaymentManualTransaction, PaymentManualTransactionSchema } from './schemas/payment-manual-transaction.schema';
 import { SalesModule } from '../sales/sales.module';
+import { UserModule } from '../user/user.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { SalesModule } from '../sales/sales.module';
       { name: PaymentManualTransaction.name, schema: PaymentManualTransactionSchema },
     ]),
     SalesModule,
+    UserModule,
   ],
   controllers: [PaymentManualController],
   providers: [PaymentManualService],

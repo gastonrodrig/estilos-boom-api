@@ -31,4 +31,9 @@ export class CreateWorkerDto {
   @IsString()
   @IsOptional()
   document_number?: string;
+
+  @ApiPropertyOptional({ example: 'Almacenero Boom' })
+  @IsString()
+  @IsOptional()
+  role?: string;
 }

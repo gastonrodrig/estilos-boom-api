@@ -35,7 +35,7 @@ export class CreateInventoryMovementDto {
   @IsNotEmpty()
   new_stock: number;
 
-  @IsEnum(['COMPRA', 'VENTA', 'TRANSFERENCIA', 'AJUSTE'])
+  @IsEnum(['COMPRA', 'VENTA', 'TRANSFERENCIA', 'AJUSTE', 'PRODUCCION'])
   @IsNotEmpty()
-  reason: 'COMPRA' | 'VENTA' | 'TRANSFERENCIA' | 'AJUSTE';
+  reason: 'COMPRA' | 'VENTA' | 'TRANSFERENCIA' | 'AJUSTE' | 'PRODUCCION';
 }

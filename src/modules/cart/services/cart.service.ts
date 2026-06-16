@@ -236,4 +236,11 @@ export class CartService {
     await cart.save();
     return { items: cart.items };
   }
+
+  async clearCart(authId: string) {
+    const cart = await this.getOrCreateCart(authId);
+    cart.items = [];
+    await cart.save();
+    return { items: [] };
+  }
 }

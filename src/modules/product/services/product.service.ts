@@ -16,9 +16,13 @@ import {
 import { StorageService } from 'src/modules/firebase/services';
 import { CreateProductDto, UpdateProductDto } from '../dto';
 import { CreateVariantDto } from '../dto/create-variant.dto';
+import { Warehouse, WarehouseDocument } from '../../warehouse/schema/warehouse.schema';
+import { WarehouseStock, WarehouseStockDocument } from '../../warehouse/schema/warehouse-stock.schema';
 
 @Injectable()
 export class ProductService {
+  private centralWarehouseId: Types.ObjectId | null = null;
+
   constructor(
     @InjectModel(Product.name)
     private productModel: Model<ProductDocument>,
@@ -28,6 +32,12 @@ export class ProductService {
 
     @InjectModel(ProductVariant.name)
     private variantModel: Model<ProductVariantDocument>,
+
+    @InjectModel(Warehouse.name)
+    private warehouseModel: Model<WarehouseDocument>,
+
+    @InjectModel(WarehouseStock.name)
+    private warehouseStockModel: Model<WarehouseStockDocument>,
 
     private storageService: StorageService,
   ) {}
@@ -42,12 +52,47 @@ export class ProductService {
       .lean()
       .exec();
 
-    const byProductId = new Map<string, ProductVariantDocument[]>();
+    // 1. Encontrar el almacén central por defecto (ALM-CEN) con caché local
+    if (!this.centralWarehouseId) {
+      const centralWarehouse = await this.warehouseModel.findOne({ code: 'ALM-CEN' }).lean().exec();
+      if (centralWarehouse) {
+        this.centralWarehouseId = centralWarehouse._id as Types.ObjectId;
+      }
+    }
+    const centralWarehouseId = this.centralWarehouseId;
+
+    // 2. Si hay almacén, buscar los stocks de todas las variantes en ese almacén
+    let stockMap = new Map<string, number>();
+    if (centralWarehouseId && variants.length > 0) {
+      const variantIds = variants.map(v => v._id);
+      const stocks = await this.warehouseStockModel.find({
+        id_warehouse: centralWarehouseId,
+        id_variant: { $in: variantIds }
+      }).lean().exec();
+      
+      for (const st of stocks) {
+        // available_stock = physical_stock - reserved_stock
+        const available = Math.max(0, (st.physical_stock ?? 0) - (st.reserved_stock ?? 0));
+        stockMap.set(st.id_variant.toString(), available);
+      }
+    }
+
+    const byProductId = new Map<string, any[]>();
 
     for (const variant of variants) {
       const key = String((variant as any).id_product);
       const current = byProductId.get(key) ?? [];
-      current.push(variant as any);
+      
+      const varIdStr = variant._id.toString();
+      const warehouseStock = stockMap.has(varIdStr) ? stockMap.get(varIdStr)! : 0;
+
+      const enrichedVariant = {
+        ...variant,
+        stock: warehouseStock,
+        available_stock: warehouseStock,
+      };
+
+      current.push(enrichedVariant);
       byProductId.set(key, current);
     }
 
@@ -56,20 +101,17 @@ export class ProductService {
       const pId = product._id.toString();
       const variants = byProductId.get(pId) ?? [];
 
-      // El stock disponible vive en WarehouseStock, no en ProductVariant.
-      // El endpoint GET /inventory/stock/:variantId expone el stock real por almacén.
-      const variantsWithAvailable = variants.map(v => ({
-        ...v,
-        available_stock: null,
-      }));
-
-      return { ...plain, variants: variantsWithAvailable };
+      return { ...plain, variants };
     });
   }
 
   async findAll(query: any = {}) {
-    const { category, section, maxPrice, colors, limit, offset, gender, season } = query;
+    const { category, section, maxPrice, colors, limit, offset, gender, season, origin_type } = query;
     const filter: any = { is_active: true };
+
+    if (origin_type) {
+      filter.origin_type = origin_type;
+    }
 
     if (gender) {
       filter.gender = gender.toUpperCase();
@@ -159,7 +201,23 @@ export class ProductService {
         min_stock_alert: dto.min_stock_alert ?? 10,
       });
 
-      return await newVariant.save();
+      const savedVariant = await newVariant.save();
+
+      // Inicializar WarehouseStock en todos los almacenes activos
+      const warehouses = await this.warehouseModel.find({ is_active: true }).exec();
+      const initialStock = dto.stock ?? dto.physical_stock ?? 0;
+      
+      for (const w of warehouses) {
+        await new this.warehouseStockModel({
+          id_warehouse: w._id,
+          id_variant: savedVariant._id,
+          physical_stock: w.code === 'ALM-CEN' ? initialStock : 0,
+          reserved_stock: 0,
+          location_rack: 'Sin Asignar'
+        }).save();
+      }
+
+      return savedVariant;
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
       throw new InternalServerErrorException(
@@ -195,9 +253,38 @@ export class ProductService {
       .lean()
       .exec();
 
+    // 1. Encontrar el almacén central por defecto (ALM-CEN)
+    const centralWarehouse = await this.warehouseModel.findOne({ code: 'ALM-CEN' }).lean().exec();
+    const centralWarehouseId = centralWarehouse ? centralWarehouse._id : null;
+
+    // 2. Si hay almacén, buscar los stocks de todas las variantes en ese almacén
+    let stockMap = new Map<string, number>();
+    if (centralWarehouseId && variants.length > 0) {
+      const variantIds = variants.map(v => v._id);
+      const stocks = await this.warehouseStockModel.find({
+        id_warehouse: centralWarehouseId,
+        id_variant: { $in: variantIds }
+      }).lean().exec();
+      
+      for (const st of stocks) {
+        const available = Math.max(0, (st.physical_stock ?? 0) - (st.reserved_stock ?? 0));
+        stockMap.set(st.id_variant.toString(), available);
+      }
+    }
+
+    const enrichedVariants = variants.map(variant => {
+      const varIdStr = variant._id.toString();
+      const warehouseStock = stockMap.has(varIdStr) ? stockMap.get(varIdStr)! : 0;
+      return {
+        ...variant,
+        stock: warehouseStock,
+        available_stock: warehouseStock,
+      };
+    });
+
     return {
       ...product.toObject(),
-      variants,
+      variants: enrichedVariants,
     };
   }
 
@@ -231,7 +318,7 @@ export class ProductService {
 
       // 5. Inserción masiva de las variantes vinculadas al ID del producto guardado
       if (rawVariants.length > 0) {
-        await this.variantModel.insertMany(
+        const createdVariants = await this.variantModel.insertMany(
           rawVariants.map((v: any) => {
             // 🛡️ Extraemos el color de forma ultra-segura
             let finalColor = v.color;
@@ -255,6 +342,21 @@ export class ProductService {
             };
           }),
         );
+
+        // Inicializar WarehouseStock en todos los almacenes activos
+        const warehouses = await this.warehouseModel.find({ is_active: true }).exec();
+        for (const variant of createdVariants) {
+          const initialStock = (variant as any).stock ?? 0;
+          for (const w of warehouses) {
+            await new this.warehouseStockModel({
+              id_warehouse: w._id,
+              id_variant: variant._id,
+              physical_stock: w.code === 'ALM-CEN' ? initialStock : 0,
+              reserved_stock: 0,
+              location_rack: 'Sin Asignar'
+            }).save();
+          }
+        }
       }
 
       const variants = await this.variantModel
@@ -315,10 +417,17 @@ export class ProductService {
           .filter(v => v._id || v.id)
           .map(v => String(v._id || v.id));
 
-        await this.variantModel.deleteMany({
+        // Encontrar y eliminar las variantes que ya no están en la lista en cascada con su WarehouseStock
+        const variantsToDelete = await this.variantModel.find({
           id_product: new Types.ObjectId(id),
           _id: { $nin: incomingVariantIds.map(vid => new Types.ObjectId(vid)) }
-        });
+        }).select('_id').lean().exec();
+        const deleteIds = variantsToDelete.map(v => v._id);
+
+        if (deleteIds.length > 0) {
+          await this.variantModel.deleteMany({ _id: { $in: deleteIds } });
+          await this.warehouseStockModel.deleteMany({ id_variant: { $in: deleteIds } });
+        }
 
         const bulkOps = rawVariants.map((v: any) => {
           const variantId = v._id || v.id;
@@ -366,6 +475,24 @@ export class ProductService {
         .find({ id_product: new Types.ObjectId(id) })
         .lean()
         .exec();
+
+      // Asegurar la inicialización de WarehouseStock en todos los almacenes para las variantes nuevas
+      const warehouses = await this.warehouseModel.find({ is_active: true }).exec();
+      for (const variant of variants) {
+        const stockExists = await this.warehouseStockModel.exists({ id_variant: variant._id });
+        if (!stockExists) {
+          const initialStock = (variant as any).stock ?? 0;
+          for (const w of warehouses) {
+            await new this.warehouseStockModel({
+              id_warehouse: w._id,
+              id_variant: variant._id,
+              physical_stock: w.code === 'ALM-CEN' ? initialStock : 0,
+              reserved_stock: 0,
+              location_rack: 'Sin Asignar'
+            }).save();
+          }
+        }
+      }
 
       return {
         ...updatedProduct.toObject(),

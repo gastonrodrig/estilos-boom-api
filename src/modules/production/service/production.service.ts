@@ -175,6 +175,16 @@ export class ProductionService {
 
     order.status = status;
     order.history.push({ status, date: new Date() });
+
+    if (status === 'CONTROL_CALIDAD') {
+      await this.createWarehouseDocumentForProduction(order);
+      order.botState = 'COMPLETED';
+    } else if (status === 'COMPLETADA') {
+      order.botState = 'COMPLETED';
+    } else if (status === 'RECHAZADA') {
+      order.botState = 'IDLE';
+    }
+
     await order.save();
 
     return this.findOne(id);
@@ -190,6 +200,8 @@ export class ProductionService {
     if (step === 'ENTREGA') {
       order.status = 'CONTROL_CALIDAD';
       order.history.push({ status: 'CONTROL_CALIDAD', date: new Date() });
+      order.botState = 'COMPLETED';
+      await this.createWarehouseDocumentForProduction(order);
     }
 
     await order.save();
@@ -206,10 +218,14 @@ export class ProductionService {
     const incomingText = body.Body.trim().toUpperCase();
     const fromPhone = body.From.replace('whatsapp:', '');
 
-    const order = await this.productionOrderModel.findOne({ 
-      workshopPhone: fromPhone, 
-      botState: { $nin: ['IDLE', 'COMPLETED'] } 
-    });
+    const order = await this.productionOrderModel.findOne(
+      { 
+        workshopPhone: fromPhone, 
+        botState: { $nin: ['IDLE', 'COMPLETED'] } 
+      },
+      null,
+      { sort: { created_at: -1 } }
+    );
 
     if (!order) {
       responseTwiml.message("No tienes órdenes activas o pendientes de actualización en este momento.");
@@ -266,6 +282,7 @@ export class ProductionService {
           order.botState = 'COMPLETED';
           order.status = 'CONTROL_CALIDAD';
           order.history.push({ status: 'CONTROL_CALIDAD', date: new Date() });
+          await this.createWarehouseDocumentForProduction(order);
           botReply = `Excelente 🎉\n¡Todas las ${totalUnidades} unidades completadas!\nEl equipo coordinará la recepción.\n¡Gracias!`;
         } else {
           // Entrega parcial — preguntar fecha de finalización
@@ -302,6 +319,7 @@ export class ProductionService {
           order.botState = 'COMPLETED';
           order.status = 'CONTROL_CALIDAD';
           order.history.push({ status: 'CONTROL_CALIDAD', date: new Date() });
+          await this.createWarehouseDocumentForProduction(order);
           botReply = `Excelente 🎉\n¡Todas las ${totalUnidades} unidades completadas!\nEl equipo coordinará la recepción.\n¡Gracias!`;
         } else if (incomingText === 'NO') {
           order.botState = 'AWAITING_UNIDADES_FINALES';
@@ -382,5 +400,54 @@ export class ProductionService {
     }
 
     return date;
+  }
+
+  private async createWarehouseDocumentForProduction(order: any) {
+    try {
+      const warehouseModel = this.productionOrderModel.db.model('Warehouse') as any;
+      const warehouseDocModel = this.productionOrderModel.db.model('WarehouseDocument') as any;
+
+      // 1. Obtener almacén central ALM-CEN
+      const centralWarehouse = await warehouseModel.findOne({ code: 'ALM-CEN' }).exec();
+      if (!centralWarehouse) {
+        this.logger.warn('⚠️ Almacén central ALM-CEN no encontrado. No se pudo crear el documento de almacén.');
+        return;
+      }
+
+      // 2. Generar el WarehouseDocument en estado PENDIENTE
+      const documentItems = order.base_items.map(item => {
+        const variantId = item.id_variant?._id || item.id_variant;
+        return {
+          id_variant: new Types.ObjectId(variantId.toString()),
+          quantity_expected: Number(item.quantity),
+          quantity_received: 0,
+          incidence_note: ''
+        };
+      });
+
+      // Evitar duplicados
+      const existingDoc = await warehouseDocModel.findOne({
+        id_origin_doc: order._id,
+        type: 'INGRESO_PRODUCCION'
+      }).exec();
+
+      if (!existingDoc) {
+        const docNumberStr = Date.now().toString().slice(-6);
+        await warehouseDocModel.create({
+          document_number: `PROD-${order.order_number || docNumberStr}`,
+          type: 'INGRESO_PRODUCCION',
+          status: 'PENDIENTE',
+          id_source_warehouse: null,
+          id_target_warehouse: centralWarehouse._id,
+          id_origin_doc: order._id,
+          id_sender_worker: order.id_worker,
+          notes: `Ingreso generado al iniciar control de calidad de la Orden de Producción ${order.order_number || order.pre_order_number}`,
+          items: documentItems
+        });
+        this.logger.log(`✅ WarehouseDocument INGRESO_PRODUCCION creado para orden ${order.order_number || order.pre_order_number}`);
+      }
+    } catch (err) {
+      this.logger.error('Error al generar WarehouseDocument para orden de producción: ' + (err as Error).message);
+    }
   }
 }

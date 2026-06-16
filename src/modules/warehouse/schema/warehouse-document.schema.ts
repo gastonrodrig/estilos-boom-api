@@ -27,7 +27,7 @@ export class WarehouseDocument {
   @Prop({ required: true, unique: true })
   document_number: string; // Ej: "DOC-2026-0001"
 
-  @Prop({ required: true, enum: ['INGRESO_COMPRA', 'SALIDA_VENTA', 'TRANSFERENCIA', 'AJUSTE'] })
+  @Prop({ required: true, enum: ['INGRESO_COMPRA', 'INGRESO_PRODUCCION', 'SALIDA_VENTA', 'TRANSFERENCIA', 'AJUSTE'] })
   type: string;
 
   @Prop({ required: true, enum: ['PENDIENTE', 'EN_TRANSITO', 'COMPLETADO', 'CANCELADO'], default: 'PENDIENTE' })

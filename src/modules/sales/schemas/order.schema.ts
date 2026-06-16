@@ -31,6 +31,12 @@ export class Order {
   
   @Prop({ type: Types.ObjectId, ref: 'PaymentManualTransaction' })
   manualPaymentId?: Types.ObjectId; // Referencia al pago manual si aplica
+
+  @Prop()
+  trackingNumber?: string; // Guía de remisión / Datos del Courier / Datos del Motorizado
+
+  @Prop()
+  shippingEvidenceUrl?: string; // Foto de la guía o del paquete despachado
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

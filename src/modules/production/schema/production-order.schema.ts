@@ -23,6 +23,8 @@ export class ProductionSupplyItem {
   unit: string;
 }
 
+export const ProductionSupplyItemSchema = SchemaFactory.createForClass(ProductionSupplyItem);
+
 // 2. Ítems Base (Variantes a producir)
 @Schema({ _id: false })
 export class ProductionVariantItem {
@@ -35,6 +37,7 @@ export class ProductionVariantItem {
   @Prop({ default: 0 })
   unit_cost: number;
 }
+export const ProductionVariantItemSchema = SchemaFactory.createForClass(ProductionVariantItem);
 
 // 3. Cotizaciones de Talleres
 @Schema({ _id: false })
@@ -42,7 +45,7 @@ export class WorkshopQuote {
   @Prop({ type: Types.ObjectId, ref: 'Workshop', required: true })
   id_agent: Types.ObjectId; // Taller
 
-  @Prop({ type: [ProductionVariantItem], default: [] })
+  @Prop({ type: [ProductionVariantItemSchema], default: [] })
   items: ProductionVariantItem[];
 
   @Prop({ default: 0 })
@@ -51,6 +54,7 @@ export class WorkshopQuote {
   @Prop({ default: 'PENDIENTE', enum: ['PENDIENTE', 'SELECCIONADO', 'RECHAZADO'] })
   quote_status: string;
 }
+export const WorkshopQuoteSchema = SchemaFactory.createForClass(WorkshopQuote);
 
 export type ProductionOrderDocument = ProductionOrder & Document;
 
@@ -107,13 +111,13 @@ export class ProductionOrder {
   @Prop({ type: Types.ObjectId, ref: 'Workshop' })
   id_winner_workshop?: Types.ObjectId;
 
-  @Prop({ type: [ProductionVariantItem], required: true })
+  @Prop({ type: [ProductionVariantItemSchema], required: true })
   base_items: ProductionVariantItem[];
 
-  @Prop({ type: [ProductionSupplyItem], default: [] })
+  @Prop({ type: [ProductionSupplyItemSchema], default: [] })
   supplies: ProductionSupplyItem[];
 
-  @Prop({ type: [WorkshopQuote], default: [] })
+  @Prop({ type: [WorkshopQuoteSchema], default: [] })
   quotes: WorkshopQuote[];
 
   @Prop({ default: 0 })

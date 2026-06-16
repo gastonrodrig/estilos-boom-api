@@ -27,9 +27,9 @@ export class CreateWarehouseDocumentDto {
   @IsNotEmpty()
   document_number: string; // Ej: "DOC-2026-0001" o tu correlativo automático
 
-  @IsEnum(['INGRESO_COMPRA', 'SALIDA_VENTA', 'TRANSFERENCIA', 'AJUSTE'])
+  @IsEnum(['INGRESO_COMPRA', 'INGRESO_PRODUCCION', 'SALIDA_VENTA', 'TRANSFERENCIA', 'AJUSTE'])
   @IsNotEmpty()
-  type: 'INGRESO_COMPRA' | 'SALIDA_VENTA' | 'TRANSFERENCIA' | 'AJUSTE';
+  type: 'INGRESO_COMPRA' | 'INGRESO_PRODUCCION' | 'SALIDA_VENTA' | 'TRANSFERENCIA' | 'AJUSTE';
 
   @IsEnum(['PENDIENTE', 'EN_TRANSITO', 'COMPLETADO', 'CANCELADO'])
   @IsOptional()
