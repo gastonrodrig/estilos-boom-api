@@ -21,7 +21,7 @@ export class UnifiedPaymentMapper {
     return {
       id: transaction._id.toString(),
       orderNumber: transaction.orderId?.orderNumber || 'S/N',
-      clientName: transaction.userId?.name || 'Cliente Desconocido',
+      clientName: transaction.orderId?.clientName || (transaction.userId ? `${transaction.userId.first_name || ''} ${transaction.userId.last_name || ''}`.trim() : null) || 'Cliente Desconocido',
       method: paymentMethodMap[transaction.paymentMethod] || 'Transferencia',
       amount: transaction.amount,
       operationNumber: transaction.operationNumber,
@@ -40,7 +40,7 @@ export class UnifiedPaymentMapper {
     return {
       id: transaction._id.toString(),
       orderNumber: transaction.orderId?.orderNumber || 'S/N',
-      clientName: transaction.userId?.name || 'Cliente Desconocido',
+      clientName: transaction.orderId?.clientName || (transaction.userId ? `${transaction.userId.first_name || ''} ${transaction.userId.last_name || ''}`.trim() : null) || 'Cliente Desconocido',
       method: `Mercado Pago - ${transaction.paymentMethodId || 'NA'}`,
       amount: transaction.amount,
       operationNumber: `MP-${transaction.paymentId}`,

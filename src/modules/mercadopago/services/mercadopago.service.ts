@@ -101,7 +101,7 @@ export class MercadoPagoService {
       // Generate PORD
       const orderData = {
         userId: queryUserId,
-        clientName: dto.payer?.email || 'Cliente Temporal MP',
+        clientName: dto.clientName || dto.payer?.email || 'Cliente Temporal MP',
         amount: response.transaction_amount || dto.transaction_amount,
         paymentMethod: 'mercadopago',
         deliveryMethod: dto.deliveryMethod || 'envio_estandar',
