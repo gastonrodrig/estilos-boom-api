@@ -26,6 +26,14 @@ export class ReviewsController {
     return this.reviewsService.findByProduct(productId, page, limit);
   }
 
+  @Get('user/pending')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get pending reviews for the logged-in user' })
+  async getPendingReviews(@Req() req: any) {
+    const userId = req.user?.id || req.user?.uid;
+    return this.reviewsService.getPendingReviews(userId);
+  }
+
   @Get('user/me')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get reviews created by the logged-in user' })
