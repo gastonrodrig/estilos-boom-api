@@ -1,4 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import * as mongoose from 'mongoose';
 import { Document, Types } from 'mongoose';
 
 export type WarehouseStockDocument = WarehouseStock & Document;
@@ -8,10 +9,10 @@ export type WarehouseStockDocument = WarehouseStock & Document;
   collection: 'WarehouseStock',
 })
 export class WarehouseStock {
-  @Prop({ type: Types.ObjectId, ref: 'Warehouse', required: true })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true })
   id_warehouse: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'ProductVariant', required: true })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'ProductVariant', required: true })
   id_variant: Types.ObjectId;
 
   @Prop({ default: 0, required: true })

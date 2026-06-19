@@ -1,4 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import * as mongoose from 'mongoose';
 import { Document, Types } from 'mongoose';
 
 export type InventoryMovementDocument = InventoryMovement & Document;
@@ -8,16 +9,16 @@ export type InventoryMovementDocument = InventoryMovement & Document;
   collection: 'InventoryMovements',
 })
 export class InventoryMovement {
-  @Prop({ type: Types.ObjectId, ref: 'ProductVariant', required: true })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'ProductVariant', required: true })
   id_variant: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Warehouse', required: true })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true })
   id_warehouse: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'WarehouseDocument', required: true })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'WarehouseDocument', required: true })
   id_document: Types.ObjectId; // El documento de arriba que gatilló este movimiento
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
   id_worker: Types.ObjectId; // Almacenero que ejecutó el cambio
 
   @Prop({ required: true, enum: ['ENTRADA', 'SALIDA'] })
@@ -32,7 +33,7 @@ export class InventoryMovement {
   @Prop({ required: true })
   new_stock: number; // Stock físico después de la acción
 
-  @Prop({ required: true, enum: ['COMPRA', 'VENTA', 'TRANSFERENCIA', 'AJUSTE'] })
+  @Prop({ required: true, enum: ['COMPRA', 'VENTA', 'TRANSFERENCIA', 'AJUSTE', 'PRODUCCION'] })
   reason: string;
 }
 

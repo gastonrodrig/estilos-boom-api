@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, HttpCode, HttpStatus, Patch, Param } from '@nestjs/common';
+import { Controller, Post, Get, Body, HttpCode, HttpStatus, Patch, Param, Delete } from '@nestjs/common';
 import { CreateCategoryDto } from '../dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { CategoryService } from '../services';
@@ -31,12 +31,26 @@ export class CategoryController {
   }
 
   @Patch(':id')
-  // @ApiBearerAuth('firebase-auth')
-  // @AuthRoles(Roles.ADMIN)
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Actualizar una categoría por su ID' })
   update(@Param('id') id: string, @Body() dto: CreateCategoryDto) {
     return this.categoryService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Desactivar una categoría (borrado lógico)' })
+  deactivate(@Param('id') id: string) {
+    return this.categoryService.deactivate(id);
+  }
+
+  @Post('migrate-abbr')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Migración única: rellena abbr y _normalized_name en categorías existentes' })
+  migrateAbbr() {
+    return this.categoryService.migrateAbbr();
   }
 }

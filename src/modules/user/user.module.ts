@@ -1,6 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { BullModule } from '@nestjs/bullmq';
+// import { BullModule } from '@nestjs/bullmq';  // deshabilitado temporalmente
 import { ClientService } from './services/client.service';
 import { WorkerService } from './services/worker.service';
 import { UserManagementService } from './services/user-management.service';
@@ -26,11 +26,6 @@ import { CartModule } from '../cart/cart.module';
       { name: ClientCompany.name, schema: ClientCompanySchema },
       { name: ClientAddress.name, schema: ClientAddressSchema },
     ]),
-    BullModule.registerQueue(
-      { name: 'forgot-password' },
-      { name: 'temporal-credentials' },
-      { name: 'security-notifications' }
-    ),
     FirebaseModule,
     CartModule,
   ],

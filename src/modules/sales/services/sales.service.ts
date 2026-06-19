@@ -82,13 +82,35 @@ export class SalesService {
       const defaultWarehouse = warehouses.find(w => w.code === 'ALM-CEN') || warehouses[0];
 
       if (defaultWarehouse) {
-        // 2. Mapear los items de la orden al formato requerido
-        const documentItems = order.items.map((item: any) => ({
-          id_variant: item.id, // En la compra, 'id' suele ser el _id de la variante
-          quantity_expected: item.quantity,
-          quantity_received: 0,
-          incidence_note: ''
-        }));
+        // 2. Mapear los items de la orden al formato de variante real requerido
+        const documentItems = await Promise.all(
+          order.items.map(async (item: any) => {
+            let variantId = item.id;
+            try {
+              const variantModel = this.orderModel.db.model('ProductVariant');
+              // Buscar variante por ID de producto, talla y nombre de color
+              const colorName = item.color && typeof item.color === 'object' ? item.color.name : item.color;
+              const foundVariant = await variantModel.findOne({
+                id_product: new Types.ObjectId(item.id),
+                size: item.size,
+                'color.name': colorName
+              }).lean().exec();
+              
+              if (foundVariant) {
+                variantId = foundVariant._id.toString();
+              }
+            } catch (err) {
+              this.logger.warn(`Could not resolve variant ID for product ${item.id}`, err);
+            }
+
+            return {
+              id_variant: variantId,
+              quantity_expected: item.quantity,
+              quantity_received: 0,
+              incidence_note: ''
+            };
+          })
+        );
 
         // 3. Crear el documento de almacén en estado PENDIENTE
         await this.inventoryService.createWarehouseDocument({
@@ -106,6 +128,10 @@ export class SalesService {
         });
         
         this.logger.log(`Documento de almacén (SALIDA_VENTA) creado en estado PENDIENTE para ${order.orderNumber}`);
+
+        order.status = 'PREPARING';
+        await order.save();
+        this.logger.log(`Estado de orden actualizado a PREPARING para ${order.orderNumber}`);
       } else {
         this.logger.error('No se encontró ningún almacén para descontar el stock.');
       }
@@ -126,6 +152,20 @@ export class SalesService {
     return await this.orderModel.find({
       ...query,
       status: { $in: ['PRE_ORDER', 'CONFIRMED', 'OBSERVED', 'PREPARING', 'SHIPPED'] }
+    }).sort({ createdAt: -1 }).exec();
+  }
+
+  // 5.2 Obtener pedidos históricos del cliente (DELIVERED, CANCELLED)
+  async getHistoryOrders(userId: string): Promise<OrderDocument[]> {
+    const isObjectId = Types.ObjectId.isValid(userId);
+    
+    const query = isObjectId 
+      ? { userId: new Types.ObjectId(userId) }
+      : { userId: { $in: [new Types.ObjectId('661413a968600d8d73b0a234'), new Types.ObjectId('65f1a2b3c4d5e6f7a8b9c0d1')] } };
+
+    return await this.orderModel.find({
+      ...query,
+      status: { $in: ['DELIVERED', 'CANCELLED'] }
     }).sort({ createdAt: -1 }).exec();
   }
 
@@ -166,5 +206,23 @@ export class SalesService {
   // 9. Actualizar el estado general de una orden
   async updateOrderStatus(orderId: string, status: string): Promise<OrderDocument | null> {
     return await this.orderModel.findByIdAndUpdate(orderId, { status }, { new: true }).exec();
+  }
+
+  // 10. Confirmar entrega del cliente
+  async confirmClientDelivery(orderId: string, userId: string): Promise<OrderDocument> {
+    const isObjectId = Types.ObjectId.isValid(userId);
+    const query = isObjectId 
+      ? { userId: new Types.ObjectId(userId) }
+      : { userId: { $in: [new Types.ObjectId('661413a968600d8d73b0a234'), new Types.ObjectId('65f1a2b3c4d5e6f7a8b9c0d1')] } };
+
+    const order = await this.orderModel.findOne({
+      _id: new Types.ObjectId(orderId),
+      ...query
+    });
+
+    if (!order) throw new Error('Order not found');
+    
+    order.status = 'DELIVERED';
+    return await order.save();
   }
 }

@@ -65,18 +65,21 @@ export class InventoryService {
   // ==========================================
 
   private async getOrCreateStockRecord(
-    idWarehouse: Types.ObjectId, 
-    idVariant: Types.ObjectId
+    idWarehouse: Types.ObjectId | string,
+    idVariant: Types.ObjectId | string
   ): Promise<WarehouseStockDocument> {
+    const warehouseObjId = typeof idWarehouse === 'string' ? new Types.ObjectId(idWarehouse) : idWarehouse;
+    const variantObjId = typeof idVariant === 'string' ? new Types.ObjectId(idVariant) : idVariant;
+
     const stockRecord = await this.stockModel.findOne({ 
-      id_warehouse: idWarehouse, 
-      id_variant: idVariant 
+      id_warehouse: warehouseObjId, 
+      id_variant: variantObjId 
     }).exec();
 
     if (!stockRecord) {
       const newStock = new this.stockModel({
-        id_warehouse: idWarehouse,
-        id_variant: idVariant,
+        id_warehouse: warehouseObjId,
+        id_variant: variantObjId,
         physical_stock: 0,
         reserved_stock: 0,
         location_rack: 'Sin Asignar'
@@ -110,13 +113,13 @@ export class InventoryService {
    * Método interno para aplicar los cambios matemáticos en el stock físico
    */
   private async applyStockChange(
-    idWarehouse: Types.ObjectId,
-    idVariant: Types.ObjectId,
-    idDocument: Types.ObjectId,
-    idWorker: Types.ObjectId,
+    idWarehouse: Types.ObjectId | string,
+    idVariant: Types.ObjectId | string,
+    idDocument: Types.ObjectId | string,
+    idWorker: Types.ObjectId | string,
     type: 'ENTRADA' | 'SALIDA',
     quantity: number,
-    reason: 'COMPRA' | 'VENTA' | 'TRANSFERENCIA' | 'AJUSTE'
+    reason: 'COMPRA' | 'VENTA' | 'TRANSFERENCIA' | 'AJUSTE' | 'PRODUCCION'
   ): Promise<InventoryMovementDocument> {
     const stockRecord = await this.getOrCreateStockRecord(idWarehouse, idVariant);
     const previousStock = stockRecord.physical_stock;
@@ -138,10 +141,10 @@ export class InventoryService {
 
     // Grabamos la línea inmutable en el Kárdex
     const movement = new this.movementModel({
-      id_variant: idVariant,
-      id_warehouse: idWarehouse,
-      id_document: idDocument,
-      id_worker: idWorker,
+      id_variant: typeof idVariant === 'string' ? new Types.ObjectId(idVariant) : idVariant,
+      id_warehouse: typeof idWarehouse === 'string' ? new Types.ObjectId(idWarehouse) : idWarehouse,
+      id_document: typeof idDocument === 'string' ? new Types.ObjectId(idDocument) : idDocument,
+      id_worker: typeof idWorker === 'string' ? new Types.ObjectId(idWorker) : idWorker,
       type,
       quantity,
       previous_stock: previousStock,
@@ -248,6 +251,11 @@ export class InventoryService {
         await this.applyStockChange(doc.id_target_warehouse, item.id_variant, doc._id as Types.ObjectId, idWorker, 'ENTRADA', finalQty, 'COMPRA');
       } 
       
+      // Caso B.2: Es un ingreso por finalización de producción
+      else if (doc.type === 'INGRESO_PRODUCCION') {
+        await this.applyStockChange(doc.id_target_warehouse, item.id_variant, doc._id as Types.ObjectId, idWorker, 'ENTRADA', finalQty, 'PRODUCCION');
+      } 
+      
       // Caso C: Es una salida por venta a un cliente
       else if (doc.type === 'SALIDA_VENTA') {
         await this.applyStockChange(doc.id_source_warehouse, item.id_variant, doc._id as Types.ObjectId, doc.id_sender_worker, 'SALIDA', finalQty, 'VENTA');
@@ -352,13 +360,28 @@ export class InventoryService {
       }
     }
 
-    // Si es una salida por venta, actualizamos la orden de venta asociada a 'PREPARING'
+    // Si es una salida por venta, actualizamos la orden de venta asociada a 'SHIPPED'
     if (doc.type === 'SALIDA_VENTA' && doc.id_origin_doc) {
       try {
         const orderModel = this.warehouseDocModel.db.model('Order');
-        await orderModel.findByIdAndUpdate(doc.id_origin_doc, { status: 'PREPARING' });
+        await orderModel.findByIdAndUpdate(doc.id_origin_doc, { status: 'SHIPPED' });
       } catch (err) {
         console.error('Error al actualizar flujo de orden tras despacho de venta:', err);
+      }
+    }
+
+    // Si es un ingreso por producción, actualizamos la OP asociada a COMPLETADA
+    if (doc.type === 'INGRESO_PRODUCCION' && doc.id_origin_doc) {
+      try {
+        const prodModel = this.warehouseDocModel.db.model('ProductionOrder') as any;
+        const order = await prodModel.findById(doc.id_origin_doc);
+        if (order && order.status !== 'COMPLETADA') {
+          order.status = 'COMPLETADA';
+          order.history.push({ status: 'COMPLETADA', date: new Date() });
+          await order.save();
+        }
+      } catch (err) {
+        console.error('Error al actualizar la orden de producción relacionada.', err);
       }
     }
 

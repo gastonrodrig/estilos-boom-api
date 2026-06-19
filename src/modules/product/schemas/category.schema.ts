@@ -8,8 +8,16 @@ export type CategoryDocument = Category & Document;
   collection: 'Category',
 })
 export class Category {
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true })
   name: string;
+
+  // Campo interno para comparación case-insensitive; único a nivel BD
+  @Prop({ unique: true, sparse: true })
+  _normalized_name: string;
+
+  // Abreviatura de 4 letras usada en la generación de SKU (ej: VEST, BUSA, PANT)
+  @Prop({ maxlength: 4 })
+  abbr: string;
 
   @Prop()
   description: string;

@@ -6,8 +6,8 @@ import { AuthModule } from './auth/auth.module';
 import { ProductModule } from './modules/product/product.module';
 import { UserModule } from './modules/user/user.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { BullModule } from '@nestjs/bullmq';
-import { MailModule } from './modules/mail/mail.module';
+// import { BullModule } from '@nestjs/bullmq';  // deshabilitado: Upstash límite excedido
+// import { MailModule } from './modules/mail/mail.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { FirebaseAuthGuard } from './auth/guards/firebase-auth.guard';
 import { CartModule } from './modules/cart/cart.module';
@@ -40,29 +40,7 @@ import { SuggestionsModule } from './modules/suggestions/suggestions.module';
       }),
       inject: [ConfigService],
     }),
-    BullModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => {
-        const redisUrl = configService.get<string>('REDIS_URL') || '';
-        const isSecure = redisUrl.startsWith('rediss://') || redisUrl.includes('upstash.io');
-        return {
-          connection: {
-            url: redisUrl,
-            maxRetriesPerRequest: null,
-            connectTimeout: 5000,
-            retryStrategy: (times: number) => {
-              if (times > 3) {
-                console.error('❌ Redis connection failed after 3 attempts. Stopping reconnect.');
-                return null;
-              }
-              return Math.min(times * 1000, 3000);
-            },
-            tls: isSecure ? { rejectUnauthorized: false } : undefined,
-          },
-        };
-      },
-      inject: [ConfigService],
-    }),
+    // BullModule deshabilitado temporalmente (Upstash límite excedido)
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
@@ -70,7 +48,7 @@ import { SuggestionsModule } from './modules/suggestions/suggestions.module';
       },
     ]),
     AuthModule,
-    MailModule,
+    // MailModule,  // deshabilitado: depende de Bull/Redis
     ProductModule,
     UserModule,
     FirebaseModule,

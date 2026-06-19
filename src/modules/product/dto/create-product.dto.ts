@@ -67,6 +67,10 @@ export class CreateProductDto {
   @IsOptional()
   custom_size_guide_url?: string;
 
+  @ApiProperty({ example: false, required: false })
+  @IsOptional()
+  is_discount?: boolean;
+
   @ApiProperty({ example: { escote: 'V', largo: 'Midi' }, required: false })
   @IsObject()
   @IsOptional()

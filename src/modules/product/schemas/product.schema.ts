@@ -29,8 +29,18 @@ export class Product {
   @Prop({ default: true })
   is_new_in: boolean;
 
-  @Prop({ type: [String] })
-  images: string[];
+  @Prop({ default: false })
+  is_discount: boolean;
+
+  @Prop({
+    type: [{
+      url: { type: String, required: true },
+      color: { type: String, default: null },
+    }],
+    _id: false,
+    default: [],
+  })
+  images: { url: string; color?: string | null }[];
 
   @Prop({ required: true, enum: ['MUJER', 'HOMBRE', 'UNISEX'] })
   gender: string; 
@@ -39,10 +49,18 @@ export class Product {
   style_type: string; 
 
   @Prop()
-  composition: string; 
+  composition: string;
+
+  // Indica si la tela principal tiene estampado (útil para ficha técnica de insumos)
+  @Prop({ enum: ['LISO', 'ESTAMPADO', 'BORDADO', 'TEXTURIZADO'], default: 'LISO' })
+  fabric_print: string;
+
+  // Solo se usa cuando fabric_print === 'ESTAMPADO' (ej: "flores", "rayas", "geométrico")
+  @Prop()
+  print_pattern: string;
 
   @Prop()
-  season: string; 
+  season: string;
 
   @Prop({ type: [String] })
   highlights: string[]; 
@@ -61,13 +79,20 @@ export class Product {
 
   @Prop({
     type: [{
-      id_supply: { type: Types.ObjectId, ref: 'Supply', required: true },
-      quantity: { type: Number, required: true }
+      id_supply:   { type: Types.ObjectId, ref: 'Supply', required: true },
+      detail:      { type: String, default: '' },   // ej: "Blanco 12mm redondo", "Viscosa 150cm"
+      quantity:    { type: Number, required: true },
+      applies_to:  { type: String, default: 'TODOS' }, // 'TODOS' o nombre de color ej: 'Rojo'
     }],
     _id: false,
-    default: undefined
+    default: [],
   })
-  technical_sheet?: { id_supply: Types.ObjectId; quantity: number }[];
+  technical_sheet?: {
+    id_supply:  Types.ObjectId;
+    detail?:    string;
+    quantity:   number;
+    applies_to: string;
+  }[];
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

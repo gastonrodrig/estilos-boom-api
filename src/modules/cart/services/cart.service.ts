@@ -87,13 +87,18 @@ export class CartService {
       throw new NotFoundException("Variante no encontrada");
     }
 
+    const firstImage = Array.isArray(product.images) && product.images.length > 0
+      ? product.images[0]
+      : null;
+    // images puede ser string[] (legado) u objeto { url, color } (nuevo formato)
+    const image = firstImage
+      ? (typeof firstImage === 'object' ? (firstImage as any).url : firstImage)
+      : null;
+
     return {
       name: product.name,
       price: Number(product.base_price ?? 0),
-      image:
-        Array.isArray(product.images) && product.images.length > 0
-          ? product.images[0]
-          : null,
+      image,
       // El stock disponible real vive en WarehouseStock (no en ProductVariant).
       // El carrito no hace reserva de stock; la validación ocurre al confirmar la orden.
       stock: Infinity, 
@@ -191,6 +196,13 @@ export class CartService {
     }
 
     return { items: cart.items };
+  }
+
+  async clearCart(authId: string) {
+    const cart = await this.getOrCreateCart(authId);
+    cart.items = [];
+    await cart.save();
+    return { items: [] };
   }
 
   async mergeCart(authId: string, dto: MergeCartDto) {

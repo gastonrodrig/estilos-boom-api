@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Request, Response } from 'express'; 
 import { ProductionService } from '../service/production.service';
@@ -73,6 +73,20 @@ export class ProductionController {
     @Body() body: { step: string }
   ) {
     return this.productionService.updateSubState(id, body.step);
+  }
+
+  @Patch(':id/confirm-supplies')
+  @Public()
+  @ApiOperation({ summary: 'Almacenero confirma que los insumos están disponibles para esta orden' })
+  confirmSupplies(@Param('id') id: string) {
+    return this.productionService.confirmSupplies(id);
+  }
+
+  @Delete(':id')
+  @Public()
+  @ApiOperation({ summary: 'Eliminar una orden de producción (solo para desarrollo)' })
+  remove(@Param('id') id: string) {
+    return this.productionService.remove(id);
   }
 
   // ========================================================

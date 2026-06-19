@@ -13,6 +13,9 @@ import {
   CategoryDocument,
   Category,
 } from '../schemas';
+import { Supply, SupplyDocument, SupplyStock, SupplyStockDocument } from '../../supplie/schema';
+import { Order } from '../../sales/schemas/order.schema';
+import { Favorite } from '../../favorites/schemas/favorite.schema';
 import { StorageService } from 'src/modules/firebase/services';
 import { CreateProductDto, UpdateProductDto } from '../dto';
 import { CreateVariantDto } from '../dto/create-variant.dto';
@@ -28,6 +31,18 @@ export class ProductService {
 
     @InjectModel(ProductVariant.name)
     private variantModel: Model<ProductVariantDocument>,
+
+    @InjectModel(Supply.name)
+    private supplyModel: Model<SupplyDocument>,
+
+    @InjectModel(SupplyStock.name)
+    private supplyStockModel: Model<SupplyStockDocument>,
+
+    @InjectModel(Order.name)
+    private orderModel: Model<any>,
+
+    @InjectModel(Favorite.name)
+    private favoriteModel: Model<any>,
 
     private storageService: StorageService,
   ) {}
@@ -51,16 +66,31 @@ export class ProductService {
       byProductId.set(key, current);
     }
 
+    const variantIds = variants.map(v => v._id);
+    let stocks = [];
+    try {
+      const stockModel = this.productModel.db.model('WarehouseStock');
+      stocks = await stockModel.find({ id_variant: { $in: variantIds } }).lean().exec();
+    } catch (e) {
+      console.warn("Could not query WarehouseStock", e);
+    }
+    
+    const stockByVariantId = new Map<string, number>();
+    for (const stock of stocks) {
+      const vId = String(stock.id_variant);
+      const currentStock = stockByVariantId.get(vId) ?? 0;
+      stockByVariantId.set(vId, currentStock + (stock.physical_stock || 0));
+    }
+
     return products.map((product) => {
       const plain = product.toObject();
       const pId = product._id.toString();
-      const variants = byProductId.get(pId) ?? [];
+      const productVariants = byProductId.get(pId) ?? [];
 
-      // El stock disponible vive en WarehouseStock, no en ProductVariant.
-      // El endpoint GET /inventory/stock/:variantId expone el stock real por almacén.
-      const variantsWithAvailable = variants.map(v => ({
+      const variantsWithAvailable = productVariants.map(v => ({
         ...v,
-        available_stock: null,
+        stock: stockByVariantId.get(String(v._id)) ?? 0,
+        available_stock: stockByVariantId.get(String(v._id)) ?? 0,
       }));
 
       return { ...plain, variants: variantsWithAvailable };
@@ -68,8 +98,16 @@ export class ProductService {
   }
 
   async findAll(query: any = {}) {
-    const { category, section, maxPrice, colors, limit, offset, gender, season } = query;
-    const filter: any = { is_active: true };
+    const { category, section, maxPrice, colors, limit, offset, gender, season, origin_type, include_inactive } = query;
+    const filter: any = {};
+
+    if (include_inactive !== 'true' && include_inactive !== true) {
+      filter.is_active = true;
+    }
+
+    if (origin_type) {
+      filter.origin_type = origin_type.toUpperCase();
+    }
 
     if (gender) {
       filter.gender = gender.toUpperCase();
@@ -99,6 +137,8 @@ export class ProductService {
       filter.is_new_in = true;
     } else if (section === 'best-seller') {
       filter.is_best_seller = true;
+    } else if (section === 'discount') {
+      filter.is_discount = true;
     }
 
     // 🎨 CORRECCIÓN DE FILTRO: Adaptado para buscar en color.name usando Dot Notation
@@ -187,7 +227,9 @@ export class ProductService {
   }
 
   async findOne(id: string) {
-    const product = await this.productModel.findById(id).populate('id_category');
+    const product = await this.productModel.findById(id)
+      .populate('id_category')
+      .populate('technical_sheet.id_supply');
     if (!product) throw new NotFoundException('Producto no encontrado');
 
     const variants = await this.variantModel
@@ -195,25 +237,80 @@ export class ProductService {
       .lean()
       .exec();
 
+    const variantIds = variants.map(v => v._id);
+    let stocks = [];
+    try {
+      const stockModel = this.productModel.db.model('WarehouseStock');
+      stocks = await stockModel.find({ id_variant: { $in: variantIds } }).lean().exec();
+    } catch (e) {
+      console.warn("Could not query WarehouseStock", e);
+    }
+    
+    const stockByVariantId = new Map<string, number>();
+    for (const stock of stocks) {
+      const vId = String(stock.id_variant);
+      const currentStock = stockByVariantId.get(vId) ?? 0;
+      stockByVariantId.set(vId, currentStock + (stock.physical_stock || 0));
+    }
+
+    const variantsWithStock = variants.map(v => ({
+      ...v,
+      stock: stockByVariantId.get(String(v._id)) ?? 0,
+      available_stock: stockByVariantId.get(String(v._id)) ?? 0,
+    }));
+
     return {
       ...product.toObject(),
-      variants,
+      variants: variantsWithStock,
     };
   }
 
-  async create(dto: CreateProductDto, files: Express.Multer.File[] = []) {
+  // Convierte el campo image_colors (JSON string o array) a un array de colores alineado por índice
+  private parseImageColors(raw: any): (string | null)[] {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.map((c) => c || null);
+    if (typeof raw === 'string') {
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.map((c) => c || null) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  async create(dto: CreateProductDto & { image_colors?: any }, files: Express.Multer.File[] = []) {
     try {
       // 1. Subida de imágenes a Storage
-      const imageUrls = await this.storageService.uploadMultipleFiles(
+      const uploadedImages = await this.storageService.uploadMultipleFiles(
         'products',
         files,
         dto.sku,
       );
 
+      // 2. Emparejamos cada imagen con su color (alineado por índice de subida)
+      const colors = this.parseImageColors(dto.image_colors);
+      const images = uploadedImages.map((f: any, i: number) => ({
+        url: f.url,
+        color: colors[i] ?? null,
+      }));
+
       // 3. Crear y guardar el Producto Base
+      let parsedTechnicalSheet: any[] = [];
+      if (dto.technical_sheet) {
+        try {
+          const raw = typeof dto.technical_sheet === 'string'
+            ? JSON.parse(dto.technical_sheet)
+            : dto.technical_sheet;
+          parsedTechnicalSheet = Array.isArray(raw) ? raw : [];
+        } catch { parsedTechnicalSheet = []; }
+      }
+
       const product = new this.productModel({
         ...dto,
-        images: imageUrls.map((file: any) => file.url),
+        images,
+        technical_sheet: parsedTechnicalSheet,
       });
 
       const savedProduct = await product.save();
@@ -262,6 +359,9 @@ export class ProductService {
         .lean()
         .exec();
 
+      // 🛠️ Auto-generate Supplies based on Product BOM and Variants
+      await this.syncSupplies(savedProduct, rawVariants);
+
       return {
         ...savedProduct.toObject(),
         variants,
@@ -273,34 +373,60 @@ export class ProductService {
     }
   }
 
-  async update(id: string, dto: UpdateProductDto, files: Express.Multer.File[] = []) {
+  async update(
+    id: string,
+    dto: UpdateProductDto & { image_colors?: any; existing_images?: any },
+    files: Express.Multer.File[] = [],
+  ) {
     try {
       const product = await this.productModel.findById(id);
       if (!product) throw new NotFoundException('Producto no encontrado');
 
-      let imageUrls = product.images;
+      // 1. Punto de partida: las imágenes que el usuario decidió conservar.
+      //    Si el front no manda existing_images, conservamos las actuales del documento.
+      let images: { url: string; color?: string | null }[];
+      if (dto.existing_images !== undefined) {
+        try {
+          const parsed =
+            typeof dto.existing_images === 'string'
+              ? JSON.parse(dto.existing_images)
+              : dto.existing_images;
+          images = Array.isArray(parsed)
+            ? parsed.map((img: any) => ({ url: img.url, color: img.color ?? null }))
+            : [];
+        } catch {
+          images = [];
+        }
+      } else {
+        images = (product.images as any) ?? [];
+      }
 
+      // 2. Subimos y agregamos las imágenes nuevas con su color.
       if (files && files.length > 0) {
         const newImages = await this.storageService.uploadMultipleFiles(
           'products',
           files,
           dto.sku || product.sku,
         );
-        imageUrls = newImages.map((file: any) => file.url);
+        const colors = this.parseImageColors(dto.image_colors);
+        images = [
+          ...images,
+          ...newImages.map((f: any, i: number) => ({ url: f.url, color: colors[i] ?? null })),
+        ];
       }
 
       const updatedProduct = await this.productModel.findByIdAndUpdate(
         id,
-        { ...dto, images: imageUrls },
+        { ...dto, images },
         { new: true },
       );
 
       if (!updatedProduct) throw new NotFoundException('Producto no encontrado');
 
+      let rawVariants: any[] = [];
       const rawVariantsInput = dto.variants;
 
       if (rawVariantsInput !== undefined) {
-        let rawVariants: any[] = [];
         if (Array.isArray(rawVariantsInput)) {
           rawVariants = rawVariantsInput;
         } else if (typeof rawVariantsInput === 'string') {
@@ -331,27 +457,31 @@ export class ProductService {
                 update: {
                   $set: {
                     size: String(v.size ?? ''),
-                    color: targetColor, // Actualiza con la estructura de objeto completa
+                    color: targetColor, 
                     physical_stock: Number(v.stock ?? 0),
                     stock: Number(v.stock ?? 0),
                     sku_variant: String(v.sku_variant ?? ''),
+                    min_stock_alert: Number(v.min_stock_alert ?? 10),
                   }
                 }
               }
             };
           } else {
             return {
-              insertOne: {
-                document: {
-                  id_product: new Types.ObjectId(id),
-                  size: String(v.size ?? ''),
-                  color: targetColor,
-                  physical_stock: Number(v.stock ?? 0),
-                  stock: Number(v.stock ?? 0),
-                  reserved_stock: 0,
-                  sku_variant: String(v.sku_variant ?? ''),
-                  min_stock_alert: Number(v.min_stock_alert ?? 10),
-                }
+              updateOne: {
+                filter: { sku_variant: String(v.sku_variant ?? '') },
+                update: {
+                  $set: {
+                    id_product: new Types.ObjectId(id),
+                    size: String(v.size ?? ''),
+                    color: targetColor,
+                    physical_stock: Number(v.stock ?? 0),
+                    stock: Number(v.stock ?? 0),
+                    reserved_stock: 0,
+                    min_stock_alert: Number(v.min_stock_alert ?? 10),
+                  }
+                },
+                upsert: true
               }
             };
           }
@@ -366,6 +496,9 @@ export class ProductService {
         .find({ id_product: new Types.ObjectId(id) })
         .lean()
         .exec();
+
+      // 🛠️ Auto-generate Supplies based on Product BOM and Variants
+      await this.syncSupplies(updatedProduct, rawVariants);
 
       return {
         ...updatedProduct.toObject(),
@@ -392,6 +525,73 @@ export class ProductService {
     }
   }
 
+  private async syncSupplies(product: any, rawVariants: any[]) {
+    if (!product.technical_sheet || product.technical_sheet.length === 0) return;
+
+    // Extraer colores únicos
+    const uniqueColors = new Map<string, any>();
+    for (const v of rawVariants) {
+      let colorObj = v.color;
+      if (typeof colorObj === 'string') {
+        try { colorObj = JSON.parse(colorObj); } catch { colorObj = { name: colorObj }; }
+      }
+      if (colorObj?.name) {
+        uniqueColors.set(colorObj.name.trim().toLowerCase(), colorObj.name.trim());
+      }
+    }
+    const colorNames = Array.from(uniqueColors.values());
+    if (colorNames.length === 0) colorNames.push(''); // Fallback si no hay colores
+
+    for (const item of product.technical_sheet) {
+      const baseSupply = await this.supplyModel.findById(item.id_supply).lean();
+      if (!baseSupply) continue;
+
+      const specsToEnsure = item.depends_on_color ? colorNames : [''];
+
+      for (const spec of specsToEnsure) {
+        // Buscar si ya existe el stock para este id_supply + specification
+        const filter = { 
+          id_supply: baseSupply._id, 
+          specification: spec 
+        };
+        
+        await this.supplyStockModel.findOneAndUpdate(
+          filter,
+          { $setOnInsert: { physical_stock: 0, average_cost: 0 } },
+          { upsert: true, new: true }
+        );
+      }
+    }
+  }
+
+  // Mapeos fijos para construir el SKU profesional
+  private static readonly GENDER_MAP: Record<string, string> = {
+    MUJER: 'MUJ', HOMBRE: 'HOM', UNISEX: 'UNI',
+  };
+
+  private static readonly SEASON_MAP: Record<string, string> = {
+    'PRIMAVERA 2026': 'P26',
+    'VERANO 2026':    'V26',
+    'OTOÑO / INVIERNO': 'OI',
+    'TODO EL AÑO':    'TA',
+  };
+
+  async getNextSkuSequence(abbr: string, gender: string, season: string): Promise<{
+    sku: string; prefix: string; sequence: number;
+  }> {
+    const genCode  = ProductService.GENDER_MAP[gender?.toUpperCase()]  ?? 'UNI';
+    const seasCode = ProductService.SEASON_MAP[season] ?? season.slice(0, 3).toUpperCase();
+    const prefix   = `${abbr.toUpperCase()}-${genCode}-${seasCode}`;
+
+    // Cuenta cuántos productos ya tienen ese prefijo para calcular el siguiente número
+    const count = await this.productModel.countDocuments({
+      sku: { $regex: `^${prefix}-` },
+    });
+    const sequence = count + 1;
+    const sku = `${prefix}-${String(sequence).padStart(3, '0')}`;
+    return { sku, prefix, sequence };
+  }
+
   async deactivate(id: string) {
     try {
       const product = await this.productModel.findByIdAndUpdate(
@@ -406,5 +606,43 @@ export class ProductService {
         `Error al desactivar: ${error.message}`,
       );
     }
+  }
+
+  async getMetrics(id: string) {
+    const product = await this.productModel.findById(id).lean();
+    if (!product) throw new NotFoundException('Producto no encontrado');
+
+    const variants = await this.variantModel.find({ id_product: new Types.ObjectId(id) }).lean();
+
+    // Favoritos (nivel producto)
+    const favoritesCount = await this.favoriteModel.countDocuments({ productId: new Types.ObjectId(id) });
+
+    // Ventas por variante — cruce por nombre + talla + color
+    const variantMetrics = await Promise.all(variants.map(async (v) => {
+      const colorName = typeof v.color === 'object' ? v.color?.name : v.color;
+      const salesCount = await this.orderModel.aggregate([
+        { $unwind: '$items' },
+        {
+          $match: {
+            'items.name': { $regex: new RegExp(`^${product.name}$`, 'i') },
+            'items.size': v.size,
+            'items.color': { $regex: new RegExp(colorName, 'i') },
+          },
+        },
+        { $group: { _id: null, total: { $sum: '$items.quantity' } } },
+      ]);
+
+      return {
+        id_variant: v._id,
+        size: v.size,
+        color: v.color,
+        sales: salesCount[0]?.total ?? 0,
+      };
+    }));
+
+    return {
+      favorites: favoritesCount,
+      variants: variantMetrics,
+    };
   }
 }

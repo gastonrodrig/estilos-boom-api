@@ -17,8 +17,9 @@ import {
   ClientAddress, ClientAddressDocument
 } from '../schemas';
 import { errorCodes } from 'src/core/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+// Bull deshabilitado temporalmente
+// import { InjectQueue } from '@nestjs/bullmq';
+// import { Queue } from 'bullmq';
 import {
   CreateClientLandingDto,
   UpdateExtraDataDto,
@@ -43,13 +44,11 @@ export class ClientService {
     private addressModel: Model<ClientAddressDocument>,
     @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
-    @InjectQueue('forgot-password')
-    private forgotPasswordQueue: Queue,
-    @InjectQueue('security-notifications')
-    private securityQueue: Queue,
-    @InjectQueue('temporal-credentials')
-    private temporalCredentialsQueue: Queue,
   ) { }
+  // Queues deshabilitadas temporalmente (Bull/Redis fuera de servicio)
+  private forgotPasswordQueue: any = null;
+  private securityQueue: any = null;
+  private temporalCredentialsQueue: any = null;
 
   async createClientLanding(dto: CreateClientLandingDto) {
     const session = await this.userModel.db.startSession();
@@ -177,7 +176,7 @@ export class ClientService {
 
       const resetLink = await this.authService.generatePasswordResetLink(email);
 
-      this.forgotPasswordQueue.add(
+      this.forgotPasswordQueue?.add(
         'sendPasswordResetLink',
         {
           to: email,
@@ -590,7 +589,7 @@ export class ClientService {
     try {
       console.log('Intentando encolar correo en Redis...');
       // Quitamos el 'await' para que no bloquee la respuesta al frontend
-      this.temporalCredentialsQueue.add(
+      this.temporalCredentialsQueue?.add(
         'sendTemporalCredentials',
         {
           to: dto.email,
@@ -701,7 +700,7 @@ export class ClientService {
           throw new InternalServerErrorException(firebasePasswordUpdate.message);
         }
 
-        this.securityQueue.add('sendEmailChangeNotification', {
+        this.securityQueue?.add('sendEmailChangeNotification', {
           to: user.email,
           oldEmail: user.email,
           newEmail: dto.email,
@@ -779,7 +778,7 @@ export class ClientService {
       await session.commitTransaction();
 
       if (emailChanged && newPassword) {
-        this.temporalCredentialsQueue.add('sendTemporalCredentials', {
+        this.temporalCredentialsQueue?.add('sendTemporalCredentials', {
           to: dto.email,
           email: dto.email,
           password: newPassword,

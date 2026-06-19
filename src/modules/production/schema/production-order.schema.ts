@@ -156,6 +156,9 @@ export class ProductionOrder {
   @Prop({ default: false })
   entregaCheckSent: boolean;
 
+  @Prop({ default: false })
+  insumos_confirmados: boolean; // El almacenero confirma que los insumos están listos antes de iniciar producción
+
   @Prop()
   workshopPhone?: string;
 

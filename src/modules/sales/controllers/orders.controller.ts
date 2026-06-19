@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Req, Param } from '@nestjs/common';
+import { Controller, Get, UseGuards, Req, Param, Patch } from '@nestjs/common';
 import { SalesService } from '../services/sales.service';
 import { FirebaseAuthGuard } from '../../../auth/guards/firebase-auth.guard';
 
@@ -13,10 +13,24 @@ export class OrdersController {
     return await this.salesService.getActiveOrders(userId);
   }
 
+  @Get('client/history')
+  @UseGuards(FirebaseAuthGuard)
+  async getHistoryOrders(@Req() req: any) {
+    const userId = req.user.uid;
+    return await this.salesService.getHistoryOrders(userId);
+  }
+
   @Get('client/:id')
   @UseGuards(FirebaseAuthGuard)
   async getOrderById(@Param('id') id: string, @Req() req: any) {
     const userId = req.user.uid;
     return await this.salesService.getOrderById(id, userId);
+  }
+
+  @Patch('client/:id/confirm-delivery')
+  @UseGuards(FirebaseAuthGuard)
+  async confirmDelivery(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user.uid;
+    return await this.salesService.confirmClientDelivery(id, userId);
   }
 }
