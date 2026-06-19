@@ -1,11 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import * as mongoose from 'mongoose';
 import { Document, Types } from 'mongoose';
 
 export type WarehouseDocumentDocument = WarehouseDocument & Document;
 
 @Schema({ _id: false })
 class WarehouseDocumentItem {
-  @Prop({ type: Types.ObjectId, ref: 'ProductVariant', required: true })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'ProductVariant', required: true })
   id_variant: Types.ObjectId;
 
   @Prop({ required: true, min: 1 })
@@ -33,19 +34,19 @@ export class WarehouseDocument {
   @Prop({ required: true, enum: ['PENDIENTE', 'EN_TRANSITO', 'COMPLETADO', 'CANCELADO'], default: 'PENDIENTE' })
   status: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Warehouse', default: null })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', default: null })
   id_source_warehouse: Types.ObjectId; // null si es una compra externa
 
-  @Prop({ type: Types.ObjectId, ref: 'Warehouse', default: null })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', default: null })
   id_target_warehouse: Types.ObjectId; // null si es una venta externa
 
-  @Prop({ type: Types.ObjectId, required: false, default: null })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, required: false, default: null })
   id_origin_doc: Types.ObjectId; // Referencia dinámica (ID de la Orden de Compra, etc.)
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
   id_sender_worker: Types.ObjectId; // Trabajador que despacha o admin que registra
 
-  @Prop({ type: Types.ObjectId, ref: 'User', default: null })
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null })
   id_receiver_worker: Types.ObjectId; // Almacenero que da la conformidad en destino
 
   @Prop({ type: [WarehouseDocumentItemSchema], required: true })

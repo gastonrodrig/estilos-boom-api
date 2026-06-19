@@ -40,12 +40,45 @@ export class FavoritesService {
     }
   }
 
-  async findAllByUser(userId: string): Promise<Favorite[]> {
+  async findAllByUser(userId: string): Promise<any[]> {
     const userObjectId = await this.resolveUserObjectId(userId);
-    return this.favoriteModel
+    const favorites = await this.favoriteModel
       .find({ userId: userObjectId })
       .populate('productId')
+      .lean()
       .exec();
+
+    const productIds = favorites.map(f => (f.productId as any)?._id).filter(Boolean);
+    
+    if (productIds.length > 0) {
+      try {
+        const variantModel = this.favoriteModel.db.model('ProductVariant');
+        const stockModel = this.favoriteModel.db.model('WarehouseStock');
+        
+        const variants = await variantModel.find({ id_product: { $in: productIds } }).lean().exec();
+        const variantIds = variants.map((v: any) => v._id);
+        const stocks = await stockModel.find({ id_variant: { $in: variantIds } }).lean().exec();
+
+        const stockByProduct = new Map<string, number>();
+        for (const v of variants) {
+          const pid = String((v as any).id_product);
+          const variantStock = stocks
+            .filter((s: any) => String(s.id_variant) === String((v as any)._id))
+            .reduce((acc: number, s: any) => acc + s.physical_stock, 0);
+          stockByProduct.set(pid, (stockByProduct.get(pid) || 0) + variantStock);
+        }
+
+        favorites.forEach(f => {
+          if (f.productId) {
+            (f.productId as any).total_stock = stockByProduct.get(String((f.productId as any)._id)) || 0;
+          }
+        });
+      } catch (e) {
+        console.warn('Could not calculate stock for favorites', e);
+      }
+    }
+
+    return favorites;
   }
 
   async remove(userId: string, productId: string): Promise<void> {

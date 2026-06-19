@@ -179,6 +179,10 @@ export class SalesService {
         });
         
         this.logger.log(`Documento de almacén (SALIDA_VENTA) creado en estado PENDIENTE para ${order.orderNumber}`);
+
+        order.status = 'PREPARING';
+        await order.save();
+        this.logger.log(`Estado de orden actualizado a PREPARING para ${order.orderNumber}`);
       } else {
         this.logger.error('No se encontró ningún almacén para descontar el stock.');
       }

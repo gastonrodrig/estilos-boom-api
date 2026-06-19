@@ -8,6 +8,8 @@ import { ProductionOrder, ProductionOrderDocument } from '../schema/production-o
 import { CreateProductionOrderDto } from '../dto/create-production-order.dto';
 import { UpdateWorkshopQuoteDto } from '../dto/update-workshop-quote.dto';
 import { WorkshopService } from '../../workshop/service/workshop.service';
+import { WarehouseDocument, WarehouseDocumentDocument } from '../../warehouse/schema/warehouse-document.schema';
+import { Warehouse, WarehouseDocument as WarehouseMongooseDocument } from '../../warehouse/schema/warehouse.schema';
 
 @Injectable()
 export class ProductionService {
@@ -16,6 +18,11 @@ export class ProductionService {
 
   constructor(
     @InjectModel(ProductionOrder.name) private productionOrderModel: Model<ProductionOrderDocument>,
+    @InjectModel(WarehouseDocument.name) private warehouseDocumentModel: Model<WarehouseDocumentDocument>,
+    @InjectModel(Warehouse.name) private warehouseModel: Model<WarehouseMongooseDocument>,
+    @InjectModel('Product') private productModel: Model<any>,
+    @InjectModel('ProductVariant') private productVariantModel: Model<any>,
+    @InjectModel('Supply') private supplyModel: Model<any>,
     private configService: ConfigService,
     private workshopService: WorkshopService,
   ) {
@@ -26,12 +33,94 @@ export class ProductionService {
     if (accountSid && authToken) {
       this.twilioClient = new Twilio(accountSid, authToken);
     } else {
-      this.logger.error('⚠️ Faltan las credenciales de Twilio en el archivo .env');
+      this.logger.warn('⚠️ Credenciales de Twilio no detectadas. El envío de SMS estará desactivado.');
     }
   }
 
+  // ======================================================
+  // Calcula los insumos (BOM) desde la ficha técnica real
+  // del producto, usando la talla de cada variante pedida.
+  // ======================================================
+  private async calculateSuppliesFromSheet(
+    base_items: { id_variant: string; quantity: number }[]
+  ): Promise<{ id: string; name: string; unit: string; unitConsumption: number; totalQuantity: number; theoreticalQuantity: number; specification: string }[]> {
+    // Accumulate required quantities per supply + specification
+    const supplyMap = new Map<string, { name: string; unit: string; totalQty: number; specification: string; id_supply: string }>();
+
+    for (const item of base_items) {
+      // Load the variant to get size and id_product
+      const variant = await this.productVariantModel
+        .findById(item.id_variant)
+        .populate('id_product')
+        .lean()
+        .exec();
+
+      if (!variant) continue;
+
+      const size: string = variant.size; // 'S' | 'M' | 'L' | 'XL' | 'XXL'
+      const product: any = variant.id_product;
+      if (!product || !product.technical_sheet) continue;
+
+      for (const sheetItem of product.technical_sheet) {
+        const supplyId = String(sheetItem.id_supply);
+        
+        let specification = '';
+        if (sheetItem.depends_on_color) {
+            let colorObj = variant.color;
+            if (typeof colorObj === 'string') {
+              try { colorObj = JSON.parse(colorObj); } catch { colorObj = { name: colorObj }; }
+            }
+            specification = colorObj?.name ? colorObj.name.trim() : '';
+        }
+
+        const mapKey = `${supplyId}|${specification}`;
+
+        // Load supply to get name and unit
+        let supplyDoc = supplyMap.get(mapKey);
+        if (!supplyDoc) {
+          const s = await this.supplyModel.findById(supplyId).lean().exec();
+          if (!s) continue;
+          supplyDoc = { name: s.name, unit: s.unit, totalQty: 0, specification, id_supply: supplyId };
+          supplyMap.set(mapKey, supplyDoc);
+        }
+
+        let qtyPerUnit = 0;
+        if (sheetItem.by_size && sheetItem.by_size[size] != null) {
+          // Fabric: use the amount for this specific size
+          qtyPerUnit = Number(sheetItem.by_size[size]);
+        } else if (sheetItem.quantity != null) {
+          // Fixed supply (buttons, zippers, thread)
+          qtyPerUnit = Number(sheetItem.quantity);
+        }
+
+        supplyDoc.totalQty += qtyPerUnit * item.quantity;
+      }
+    }
+
+    return Array.from(supplyMap.entries()).map(([mapKey, val]) => ({
+      id: val.id_supply,
+      name: val.name,
+      unit: val.unit,
+      unitConsumption: 0, // aggregated across sizes, not per-unit in this context
+      totalQuantity: parseFloat(val.totalQty.toFixed(3)),
+      theoreticalQuantity: parseFloat(val.totalQty.toFixed(3)),
+      specification: val.specification
+    }));
+  }
+
   async create(createDto: CreateProductionOrderDto): Promise<ProductionOrder> {
-    const { base_items, workshop_ids, id_worker, supplies, observations, delivery_date_estimated } = createDto;
+    const { base_items, workshop_ids, id_worker, observations, delivery_date_estimated } = createDto;
+
+    // Calculate supplies automatically from product technical_sheet
+    // If variants carry a real id_product we can derive BOM; otherwise fall back to empty
+    let calculatedSupplies: any[] = [];
+    try {
+      calculatedSupplies = await this.calculateSuppliesFromSheet(
+        base_items.map(i => ({ id_variant: String(i.id_variant), quantity: i.quantity }))
+      );
+    } catch (err) {
+      this.logger.warn('No se pudo calcular BOM desde ficha técnica: ' + err);
+    }
 
     const initialQuotes = workshop_ids.map(id => ({
       id_agent: new Types.ObjectId(id),
@@ -47,11 +136,12 @@ export class ProductionService {
       order_number: `OP-2026-${orderNumberStr}`,
       id_worker,
       base_items,
-      supplies: supplies || [],
+      supplies: calculatedSupplies,
       quotes: initialQuotes,
       observations,
       delivery_date_estimated,
       status: 'CONTACTO_INICIAL',
+      insumos_confirmados: false,
       history: [{ status: 'CONTACTO_INICIAL', date: new Date() }],
       sub_states: []
     });
@@ -71,6 +161,21 @@ export class ProductionService {
       })
       .sort({ created_at: -1 })
       .exec();
+  }
+
+  async remove(id: string): Promise<{ deleted: boolean }> {
+    await this.productionOrderModel.findByIdAndDelete(id);
+    return { deleted: true };
+  }
+
+  async confirmSupplies(id: string): Promise<ProductionOrder> {
+    const order = await this.productionOrderModel.findById(id);
+    if (!order) throw new NotFoundException('Orden de producción no encontrada');
+    order.insumos_confirmados = true;
+    order.status = 'EN_PRODUCCION';
+    order.history.push({ status: 'EN_PRODUCCION', date: new Date() });
+    await order.save();
+    return this.findOne(id);
   }
 
   async findOne(id: string): Promise<ProductionOrder> {
@@ -122,8 +227,11 @@ export class ProductionService {
 
     order.id_winner_workshop = new Types.ObjectId(workshopId);
     order.total_amount = winnerQuote.total_amount;
-    order.status = 'EN_PRODUCCION';
-    order.history.push({ status: 'EN_PRODUCCION', date: new Date() });
+    // Stay in COMPARANDO — EN_PRODUCCION happens when almacenero confirms supplies
+    if (order.status !== 'COMPARANDO') {
+      order.status = 'COMPARANDO';
+      order.history.push({ status: 'COMPARANDO', date: new Date() });
+    }
 
     // ========================================================
     // INTEGRACIÓN TWILIO: INICIO DE BOT DE SEGUIMIENTO

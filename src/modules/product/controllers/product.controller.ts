@@ -96,13 +96,28 @@ export class ProductController {
       is_active: body.is_active === undefined ? true : (body.is_active === 'true' || body.is_active === true),
       is_best_seller: body.is_best_seller === 'true' || body.is_best_seller === true,
       is_new_in: body.is_new_in === 'true' || body.is_new_in === true,
-      variants: body.variants, // El servicio se encargará de parsearlo/validarlo de forma interna
+      is_discount: body.is_discount === 'true' || body.is_discount === true,
+      variants: body.variants, 
       highlights: body.highlights ? parseJsonField(body.highlights) : [], 
       technical_details: body.technical_details ? parseJsonField(body.technical_details) : undefined,
       technical_sheet: body.technical_sheet ? parseJsonField(body.technical_sheet) : undefined,
-    };
+    } as any;
 
     return this.productService.create(createProductDto, files);
+  }
+
+  @Get('next-sku')
+  @Public()
+  @ApiOperation({ summary: 'Obtener el siguiente SKU disponible para un prefijo dado' })
+  @ApiQuery({ name: 'abbr',   required: true,  description: 'Abreviatura de la categoría (ej: VEST)' })
+  @ApiQuery({ name: 'gender', required: true,  description: 'Género del producto (MUJER, HOMBRE, UNISEX)' })
+  @ApiQuery({ name: 'season', required: true,  description: 'Temporada (ej: PRIMAVERA 2026)' })
+  getNextSku(
+    @Query('abbr')   abbr:   string,
+    @Query('gender') gender: string,
+    @Query('season') season: string,
+  ) {
+    return this.productService.getNextSkuSequence(abbr, gender, season);
   }
 
   @Get()
@@ -113,6 +128,7 @@ export class ProductController {
   @ApiQuery({ name: 'season', required: false, description: 'Filtrar por temporada de ropa' }) 
   @ApiQuery({ name: 'maxPrice', required: false, type: Number, description: 'Tope máximo de precio base' })
   @ApiQuery({ name: 'colors', required: false, description: 'Filtrar por nombre de color (ej: Negro)' })
+  @ApiQuery({ name: 'origin_type', required: false, enum: ['RETAIL', 'PRODUCCION'], description: 'Filtrar por origen del producto' })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'offset', required: false, type: Number })
   async findAll(@Query() query: any) {
@@ -154,13 +170,22 @@ export class ProductController {
     const updateDto = {
       ...body,
       base_price: body.base_price ? Number(body.base_price) : undefined,
-      is_best_seller: body.is_best_seller === 'true' || body.is_best_seller === true,
-      is_new_in: body.is_new_in === 'true' || body.is_new_in === true,
+      is_active: body.is_active !== undefined ? (body.is_active === 'true' || body.is_active === true) : undefined,
+      is_best_seller: body.is_best_seller !== undefined ? (body.is_best_seller === 'true' || body.is_best_seller === true) : undefined,
+      is_new_in: body.is_new_in !== undefined ? (body.is_new_in === 'true' || body.is_new_in === true) : undefined,
+      is_discount: body.is_discount !== undefined ? (body.is_discount === 'true' || body.is_discount === true) : undefined,
       variants: body.variants || undefined,
       technical_sheet: body.technical_sheet ? parseJsonField(body.technical_sheet) : undefined,
     };
 
     return this.productService.update(id, updateDto, files);
+  }
+
+  @Get(':id/metrics')
+  @Public()
+  @ApiOperation({ summary: 'Obtener métricas reales de ventas y favoritos por producto' })
+  getMetrics(@Param('id') id: string) {
+    return this.productService.getMetrics(id);
   }
 
   @Get(':id')

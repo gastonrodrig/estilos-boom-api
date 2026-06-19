@@ -64,6 +64,14 @@ export class CartController {
         return this.cartService.removeItem(authId, dto);
     }
 
+    @Delete('clear')
+    @HttpCode(200)
+    @ApiOperation({ summary: 'Limpiar el carrito por completo' })
+    clearCart(@Req() req: Request) {
+        const authId = this.getAuthId(req);
+        return this.cartService.clearCart(authId);
+    }
+
     @Post('merge')
     @ApiOperation({ summary: 'Fusionar carrito de invitado con el de usuario' })
     merge(@Req() req: Request, @Body() dto: MergeCartDto) {
@@ -71,11 +79,5 @@ export class CartController {
         return this.cartService.mergeCart(authId, dto);
     }
 
-    @Delete('clear')
-    @HttpCode(200)
-    @ApiOperation({ summary: 'Limpiar el carrito del usuario autenticado' })
-    clearCart(@Req() req: Request) {
-        const authId = this.getAuthId(req);
-        return this.cartService.clearCart(authId);
-    }
+
 }

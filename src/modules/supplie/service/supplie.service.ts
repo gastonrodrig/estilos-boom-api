@@ -20,6 +20,28 @@ export class SupplyService {
     private readonly productModel: Model<ProductDocument>,
   ) {}
 
+  // Insumos base que deben existir siempre en el catálogo
+  private static readonly BASE_SUPPLIES = [
+    { name: 'Tela',           category: 'Telas',                    unit: 'metros'    },
+    { name: 'Hilo de Costura', category: 'Hilos',                   unit: 'conos'     },
+    { name: 'Botón',          category: 'Botones y Broches',         unit: 'unidades'  },
+    { name: 'Cierre',         category: 'Cierres y Cremalleras',     unit: 'unidades'  },
+    { name: 'Elástico',       category: 'Elásticos',                 unit: 'metros'    },
+    { name: 'Entretela',      category: 'Entretelas',                unit: 'metros'    },
+    { name: 'Etiqueta',       category: 'Acabados',                  unit: 'unidades'  },
+  ];
+
+  async seedBaseSupplies() {
+    for (const item of SupplyService.BASE_SUPPLIES) {
+      const exists = await this.supplyModel.findOne({
+        name: new RegExp(`^${item.name}$`, 'i'),
+      });
+      if (!exists) {
+        await this.supplyModel.create({ ...item, is_active: true });
+      }
+    }
+  }
+
   /**
    * 📊 Lista todos los insumos calculando en cuántas fichas técnicas de productos activos participa.
    */

@@ -1,4 +1,4 @@
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe, BadRequestException } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import expressBasicAuth from 'express-basic-auth';
@@ -81,6 +81,10 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      exceptionFactory: (errors) => {
+        logger.error(`Validation errors: ${JSON.stringify(errors, null, 2)}`);
+        return new BadRequestException(errors);
+      },
     }),
   );
 

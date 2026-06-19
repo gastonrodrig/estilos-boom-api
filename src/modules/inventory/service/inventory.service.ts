@@ -65,21 +65,21 @@ export class InventoryService {
   // ==========================================
 
   private async getOrCreateStockRecord(
-    idWarehouse: Types.ObjectId, 
-    idVariant: Types.ObjectId
+    idWarehouse: Types.ObjectId | string,
+    idVariant: Types.ObjectId | string
   ): Promise<WarehouseStockDocument> {
-    const warehouseIdObj = new Types.ObjectId(idWarehouse.toString());
-    const variantIdObj = new Types.ObjectId(idVariant.toString());
+    const warehouseObjId = typeof idWarehouse === 'string' ? new Types.ObjectId(idWarehouse) : idWarehouse;
+    const variantObjId = typeof idVariant === 'string' ? new Types.ObjectId(idVariant) : idVariant;
 
     const stockRecord = await this.stockModel.findOne({ 
-      id_warehouse: warehouseIdObj, 
-      id_variant: variantIdObj 
+      id_warehouse: warehouseObjId, 
+      id_variant: variantObjId 
     }).exec();
 
     if (!stockRecord) {
       const newStock = new this.stockModel({
-        id_warehouse: warehouseIdObj,
-        id_variant: variantIdObj,
+        id_warehouse: warehouseObjId,
+        id_variant: variantObjId,
         physical_stock: 0,
         reserved_stock: 0,
         location_rack: 'Sin Asignar'
@@ -124,10 +124,10 @@ export class InventoryService {
    * Método interno para aplicar los cambios matemáticos en el stock físico
    */
   private async applyStockChange(
-    idWarehouse: Types.ObjectId,
-    idVariant: Types.ObjectId,
-    idDocument: Types.ObjectId,
-    idWorker: Types.ObjectId,
+    idWarehouse: Types.ObjectId | string,
+    idVariant: Types.ObjectId | string,
+    idDocument: Types.ObjectId | string,
+    idWorker: Types.ObjectId | string,
     type: 'ENTRADA' | 'SALIDA',
     quantity: number,
     reason: 'COMPRA' | 'VENTA' | 'TRANSFERENCIA' | 'AJUSTE' | 'PRODUCCION'
@@ -281,7 +281,6 @@ export class InventoryService {
       else if (doc.type === 'INGRESO_PRODUCCION') {
         await this.applyStockChange(doc.id_target_warehouse, item.id_variant, doc._id as Types.ObjectId, idWorker, 'ENTRADA', finalQty, 'PRODUCCION');
       }
-
       // Caso C: Es una salida por venta a un cliente
       else if (doc.type === 'SALIDA_VENTA') {
         await this.applyStockChange(doc.id_source_warehouse, item.id_variant, doc._id as Types.ObjectId, doc.id_sender_worker, 'SALIDA', finalQty, 'VENTA');
@@ -438,6 +437,8 @@ export class InventoryService {
         console.error('Error al actualizar flujo de orden tras despacho de venta:', err);
       }
     }
+
+
 
     return savedDoc;
   }
