@@ -42,4 +42,9 @@ export class ProcessPaymentDto {
   @IsString()
   @IsOptional()
   deliveryMethod?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  clientName?: string;
 }

@@ -31,6 +31,9 @@ export class SupplyTransaction {
 
   @Prop()
   notes?: string;
+
+  @Prop({ type: [String], default: [] })
+  evidence_images: string[];
 }
 
 export const SupplyTransactionSchema = SchemaFactory.createForClass(SupplyTransaction);

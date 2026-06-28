@@ -25,6 +25,9 @@ export class Supply {
 
     @Prop()
     notes: string; // Notas internas para el equipo
+
+    @Prop({ default: true })
+    retornable: boolean; // false para Telas — los retazos no vuelven al almacén
 }
 
 export const SupplySchema = SchemaFactory.createForClass(Supply);

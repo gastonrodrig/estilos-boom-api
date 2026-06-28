@@ -106,7 +106,7 @@ export class CartService {
   }
 
   private buildCartItemSnapshot(
-    dto: CartItemIdentity & { quantity: number },
+    dto: CartItemIdentity & { quantity: number; image?: string },
     snapshot: { name: string; price: number; image: string | null; stock: number },
   ): CartItemSnapshot {
     return {
@@ -116,7 +116,7 @@ export class CartService {
       quantity: Math.min(dto.quantity, snapshot.stock),
       size: dto.size,
       color: dto.color,
-      image: snapshot.image,
+      image: dto.image ?? snapshot.image,
     };
   }
 

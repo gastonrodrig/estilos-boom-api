@@ -15,9 +15,11 @@ import { SupplyWarehouseService } from './service/supply-warehouse.service';
 
 import { Product, ProductSchema, ProductVariant, ProductVariantSchema } from '../product/schemas';
 import { ProductionOrder, ProductionOrderSchema } from '../production/schema/production-order.schema';
+import { FirebaseModule } from '../firebase/firebase.module';
 
 @Module({
   imports: [
+    FirebaseModule,
     MongooseModule.forFeature([
       { name: Supply.name, schema: SupplySchema },
       { name: SupplyStock.name, schema: SupplyStockSchema },

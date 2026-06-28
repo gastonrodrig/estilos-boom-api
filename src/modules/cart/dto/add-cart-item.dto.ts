@@ -1,6 +1,7 @@
-import { IsInt, 
-	IsNotEmpty, 
-	IsString, 
+import { IsInt,
+	IsNotEmpty,
+	IsOptional,
+	IsString,
 	Min } from "class-validator";
 
 export class AddCartItemDto {
@@ -19,4 +20,8 @@ export class AddCartItemDto {
   @IsString()
   @IsNotEmpty()
   color: string;
+
+  @IsString()
+  @IsOptional()
+  image?: string;
 }

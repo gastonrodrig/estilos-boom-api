@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { StorageService } from 'src/modules/firebase/services/storage.service';
 import { Supply, SupplyStock, SupplyStockDocument, SupplyTransaction, SupplyTransactionDocument } from '../schema';
 
 @Injectable()
@@ -17,6 +18,8 @@ export class SupplyWarehouseService {
 
     @InjectModel('ProductionOrder')
     private readonly productionOrderModel: Model<any>,
+
+    private readonly storageService: StorageService,
   ) {}
 
   async getInventory() {
@@ -58,12 +61,32 @@ export class SupplyWarehouseService {
     supplier_name?: string;
     notes?: string;
     items: { id_supply: string; quantity: number; cost: number; specifications?: string }[];
+    evidence_files?: Express.Multer.File[];
   }) {
+    // Validar que todos los id_supply sean ObjectIds válidos
+    for (const item of dto.items) {
+      if (!Types.ObjectId.isValid(item.id_supply)) {
+        throw new BadRequestException(`id_supply inválido: "${item.id_supply}". Debe ser un ObjectId de MongoDB.`);
+      }
+    }
+
+    // Upload evidence images if provided
+    let evidence_images: string[] = [];
+    if (dto.evidence_files && dto.evidence_files.length > 0) {
+      try {
+        const uploaded = await this.storageService.uploadMultipleFiles('supply-evidence', dto.evidence_files, 'purchases');
+        evidence_images = (uploaded as any[]).map(f => f.url);
+      } catch (err) {
+        throw new InternalServerErrorException(`Error al subir evidencia: ${err.message}`);
+      }
+    }
+
     // 1. Registrar la transacción en el historial
     const newTx = new this.transactionModel({
       type: 'PURCHASE',
       supplier_name: dto.supplier_name,
       notes: dto.notes,
+      evidence_images,
       items: dto.items.map(i => ({
         id_supply: new Types.ObjectId(i.id_supply),
         quantity: i.quantity,
@@ -77,26 +100,26 @@ export class SupplyWarehouseService {
     for (const item of dto.items) {
       const supplyId = new Types.ObjectId(item.id_supply);
       const spec = item.specifications || '';
-      const stock = await this.stockModel.findOne({ id_supply: supplyId, specification: spec });
 
-      if (stock) {
-        // Recalcular promedio ponderado de costos: promedio = (stock anterior * costo anterior + costo nuevo * qty nueva) / stock total nuevo
-        const oldStockVal = stock.physical_stock * (stock.average_cost || 0);
+      const existing = await this.stockModel.findOne({ id_supply: supplyId, specification: spec }).lean();
+
+      if (existing) {
+        const oldStockVal = existing.physical_stock * (existing.average_cost || 0);
         const newStockVal = item.quantity * item.cost;
-        const totalQty = stock.physical_stock + item.quantity;
+        const totalQty = existing.physical_stock + item.quantity;
+        const newAvg = totalQty > 0 ? (oldStockVal + newStockVal) / totalQty : item.cost;
 
-        stock.physical_stock = totalQty;
-        stock.average_cost = totalQty > 0 ? (oldStockVal + newStockVal) / totalQty : item.cost;
-        await stock.save();
+        await this.stockModel.updateOne(
+          { id_supply: supplyId, specification: spec },
+          { $set: { physical_stock: totalQty, average_cost: newAvg } },
+        );
       } else {
-        // Crear registro de stock si no existe
-        const newStock = new this.stockModel({
+        await this.stockModel.create({
           id_supply: supplyId,
           specification: spec,
           physical_stock: item.quantity,
           average_cost: item.cost,
         });
-        await newStock.save();
       }
     }
 
@@ -145,16 +168,24 @@ export class SupplyWarehouseService {
   }
 
   async recordReturn(dto: {
-    id_workshop: string;
+    id_workshop?: string;
     notes?: string;
     items: { id_supply: string; quantity: number; specifications?: string }[];
   }) {
-    // 1. Crear transacción de devolución
+    // Filtrar insumos no retornables (ej: Telas)
+    const returnableItems: typeof dto.items = [];
+    for (const item of dto.items) {
+      const supply = await this.supplyModel.findById(item.id_supply).lean();
+      if (supply && supply.retornable === false) continue;
+      returnableItems.push(item);
+    }
+
+    // 1. Crear transacción de devolución (solo con retornables)
     const newTx = new this.transactionModel({
       type: 'RETURN',
-      id_workshop: new Types.ObjectId(dto.id_workshop),
+      ...(dto.id_workshop ? { id_workshop: new Types.ObjectId(dto.id_workshop) } : {}),
       notes: dto.notes,
-      items: dto.items.map(i => ({
+      items: returnableItems.map(i => ({
         id_supply: new Types.ObjectId(i.id_supply),
         quantity: i.quantity,
         specifications: i.specifications,
@@ -163,7 +194,7 @@ export class SupplyWarehouseService {
     const savedTx = await newTx.save();
 
     // 2. Incrementar el stock físico de reingreso al almacén
-    for (const item of dto.items) {
+    for (const item of returnableItems) {
       const supplyId = new Types.ObjectId(item.id_supply);
       const spec = item.specifications || '';
       const stock = await this.stockModel.findOne({ id_supply: supplyId, specification: spec });

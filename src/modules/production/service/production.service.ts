@@ -10,6 +10,7 @@ import { UpdateWorkshopQuoteDto } from '../dto/update-workshop-quote.dto';
 import { WorkshopService } from '../../workshop/service/workshop.service';
 import { WarehouseDocument, WarehouseDocumentDocument } from '../../warehouse/schema/warehouse-document.schema';
 import { Warehouse, WarehouseDocument as WarehouseMongooseDocument } from '../../warehouse/schema/warehouse.schema';
+import { SupplyStock, SupplyStockDocument } from '../../supplie/schema/supply-stock.schema';
 
 @Injectable()
 export class ProductionService {
@@ -23,6 +24,7 @@ export class ProductionService {
     @InjectModel('Product') private productModel: Model<any>,
     @InjectModel('ProductVariant') private productVariantModel: Model<any>,
     @InjectModel('Supply') private supplyModel: Model<any>,
+    @InjectModel(SupplyStock.name) private supplyStockModel: Model<SupplyStockDocument>,
     private configService: ConfigService,
     private workshopService: WorkshopService,
   ) {
@@ -171,11 +173,28 @@ export class ProductionService {
   async confirmSupplies(id: string): Promise<ProductionOrder> {
     const order = await this.productionOrderModel.findById(id);
     if (!order) throw new NotFoundException('Orden de producción no encontrada');
+
+    // Descontar stock de cada insumo de la orden
+    for (const supply of (order.supplies || [])) {
+      if (!supply.id || !supply.totalQuantity) continue;
+      await this.supplyStockModel.updateMany(
+        { id_supply: supply.id },
+        { $inc: { physical_stock: -supply.totalQuantity } }
+      );
+    }
+
     order.insumos_confirmados = true;
     order.status = 'EN_PRODUCCION';
     order.history.push({ status: 'EN_PRODUCCION', date: new Date() });
     await order.save();
     return this.findOne(id);
+  }
+
+  async generateReceptionDoc(id: string): Promise<{ ok: boolean; message: string }> {
+    const order = await this.productionOrderModel.findById(id);
+    if (!order) throw new NotFoundException('Orden de producción no encontrada');
+    await this.createProductionReceptionDoc(order);
+    return { ok: true, message: `Documento de recepción generado para ${order.order_number}` };
   }
 
   async findOne(id: string): Promise<ProductionOrder> {
@@ -288,6 +307,33 @@ export class ProductionService {
     return this.findOne(id);
   }
 
+  async createProductionReceptionDoc(order: ProductionOrderDocument): Promise<void> {
+    try {
+      const centralWarehouse = await this.warehouseModel.findOne({ code: 'ALM-CEN' });
+      if (!centralWarehouse) return;
+      const docNumber = `PROD-${order.order_number}`;
+      const existing = await this.warehouseDocumentModel.findOne({ document_number: docNumber });
+      if (existing) return;
+      await this.warehouseDocumentModel.create({
+        document_number: docNumber,
+        type: 'INGRESO_PRODUCCION',
+        status: 'PENDIENTE',
+        id_source_warehouse: null,
+        id_target_warehouse: centralWarehouse._id,
+        id_origin_doc: order._id,
+        id_sender_worker: order.id_worker,
+        items: order.base_items.map(item => ({
+          id_variant: item.id_variant,
+          quantity_expected: item.quantity,
+          quantity_received: 0
+        })),
+        notes: `Ingreso generado automáticamente por finalización de Producción ${order.order_number}`
+      });
+    } catch (err) {
+      this.logger.error('Error al generar WarehouseDocument para Producción', err);
+    }
+  }
+
   async updateSubState(id: string, step: string): Promise<ProductionOrder> {
     const order = await this.productionOrderModel.findById(id);
     if (!order) throw new NotFoundException('Orden de producción no encontrada');
@@ -298,29 +344,7 @@ export class ProductionService {
     if (step === 'ENTREGA') {
       order.status = 'CONTROL_CALIDAD';
       order.history.push({ status: 'CONTROL_CALIDAD', date: new Date() });
-
-      try {
-        const centralWarehouse = await this.warehouseModel.findOne({ code: 'ALM-CEN' });
-        if (centralWarehouse) {
-          await this.warehouseDocumentModel.create({
-            document_number: `PROD-${order.order_number}`,
-            type: 'INGRESO_PRODUCCION',
-            status: 'PENDIENTE',
-            id_source_warehouse: null,
-            id_target_warehouse: centralWarehouse._id,
-            id_origin_doc: order._id,
-            id_sender_worker: order.id_worker,
-            items: order.base_items.map(item => ({
-              id_variant: item.id_variant,
-              quantity_expected: item.quantity,
-              quantity_received: 0
-            })),
-            notes: `Ingreso generado automáticamente por finalización de Producción ${order.order_number}`
-          });
-        }
-      } catch (err) {
-        this.logger.error('Error al generar WarehouseDocument para Producción', err);
-      }
+      await this.createProductionReceptionDoc(order);
     }
 
     await order.save();
@@ -397,6 +421,7 @@ export class ProductionService {
           order.botState = 'COMPLETED';
           order.status = 'CONTROL_CALIDAD';
           order.history.push({ status: 'CONTROL_CALIDAD', date: new Date() });
+          await this.createProductionReceptionDoc(order);
           botReply = `Excelente 🎉\n¡Todas las ${totalUnidades} unidades completadas!\nEl equipo coordinará la recepción.\n¡Gracias!`;
         } else {
           // Entrega parcial — preguntar fecha de finalización
@@ -433,6 +458,7 @@ export class ProductionService {
           order.botState = 'COMPLETED';
           order.status = 'CONTROL_CALIDAD';
           order.history.push({ status: 'CONTROL_CALIDAD', date: new Date() });
+          await this.createProductionReceptionDoc(order);
           botReply = `Excelente 🎉\n¡Todas las ${totalUnidades} unidades completadas!\nEl equipo coordinará la recepción.\n¡Gracias!`;
         } else if (incomingText === 'NO') {
           order.botState = 'AWAITING_UNIDADES_FINALES';

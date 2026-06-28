@@ -6,7 +6,7 @@ import { ProductionOrder, ProductionOrderSchema } from './schema/production-orde
 import { WorkshopModule } from '../workshop/workshop.module';
 import { WarehouseModule } from '../warehouse/warehouse.module';
 import { Product, ProductSchema, ProductVariant, ProductVariantSchema } from '../product/schemas';
-import { Supply, SupplySchema } from '../supplie/schema';
+import { Supply, SupplySchema, SupplyStock, SupplyStockSchema } from '../supplie/schema';
 
 @Module({
   imports: [
@@ -15,6 +15,7 @@ import { Supply, SupplySchema } from '../supplie/schema';
       { name: Product.name, schema: ProductSchema },
       { name: ProductVariant.name, schema: ProductVariantSchema },
       { name: Supply.name, schema: SupplySchema },
+      { name: SupplyStock.name, schema: SupplyStockSchema },
     ]),
     WorkshopModule,
     WarehouseModule,

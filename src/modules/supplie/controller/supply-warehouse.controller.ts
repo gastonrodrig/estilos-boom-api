@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { SupplyWarehouseService } from '../service/supply-warehouse.service';
 import { Public } from 'src/auth/decorators';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 
 @ApiTags('Almacén de Insumos (Supply Warehouse)')
 @Controller('supply-warehouse')
@@ -17,9 +18,25 @@ export class SupplyWarehouseController {
 
   @Post('purchase')
   @Public()
-  @ApiOperation({ summary: 'Registrar una compra de insumos en Gamarra' })
-  async recordPurchase(@Body() body: any) {
-    return this.warehouseService.recordPurchase(body);
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Registrar una compra de insumos con evidencia fotográfica' })
+  @UseInterceptors(FilesInterceptor('evidence_files', 5))
+  async recordPurchase(
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() body: any,
+  ) {
+    try {
+      const items = typeof body.items === 'string' ? JSON.parse(body.items) : body.items;
+      return await this.warehouseService.recordPurchase({
+        supplier_name: body.supplier_name,
+        notes: body.notes,
+        items,
+        evidence_files: files || [],
+      });
+    } catch (err: any) {
+      console.error('[recordPurchase] ERROR:', err?.message, err?.stack);
+      throw err;
+    }
   }
 
   @Post('dispatch')

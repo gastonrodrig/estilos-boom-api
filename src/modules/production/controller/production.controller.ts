@@ -82,6 +82,13 @@ export class ProductionController {
     return this.productionService.confirmSupplies(id);
   }
 
+  @Post(':id/generate-reception')
+  @Public()
+  @ApiOperation({ summary: 'Genera manualmente el documento de recepción para una orden en CONTROL_CALIDAD' })
+  generateReceptionDoc(@Param('id') id: string) {
+    return this.productionService.generateReceptionDoc(id);
+  }
+
   @Delete(':id')
   @Public()
   @ApiOperation({ summary: 'Eliminar una orden de producción (solo para desarrollo)' })
