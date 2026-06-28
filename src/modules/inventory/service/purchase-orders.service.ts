@@ -258,11 +258,11 @@ export class PurchaseOrdersService {
   }
 
   async approveAndInventory(
-    purchaseOrderId: string, 
-    qualityRating: number, 
-    workerId: string,
-    observations?: string,    
-    qtyIncidences?: number    
+    purchaseOrderId: string,
+    qualityRating: number,
+    workerId?: string,
+    observations?: string,
+    qtyIncidences?: number
   ): Promise<any> {
     const session = await this.connection.startSession();
     session.startTransaction();
@@ -272,16 +272,17 @@ export class PurchaseOrdersService {
       if (!order) throw new NotFoundException('Orden de Compra no encontrada');
       if (order.status === 'COMPLETADA') throw new BadRequestException('Esta orden ya fue ingresada al inventario.');
 
-      order.status = 'COMPLETADA'; 
+      order.status = 'COMPLETADA';
       order.quality_rating = qualityRating;
       order.delivery_date_actual = new Date();
-      order.qty_incidences = qtyIncidences || 0; 
-      order.quality_observations = observations || 'Sin observaciones adicionales.'; 
-      
+      order.qty_incidences = qtyIncidences || 0;
+      order.quality_observations = observations || 'Sin observaciones adicionales.';
+
       const savedOrder = await order.save({ session });
 
-      // Se ejecuta el receptor unificado de stock
-      await this.handleStockReceipt(savedOrder, workerId, session);
+      // Usar workerId recibido o tomar el worker de la orden
+      const resolvedWorkerId = workerId || String(order.id_worker);
+      await this.handleStockReceipt(savedOrder, resolvedWorkerId, session);
 
       const updatedPreOrder = await this.preOrderModel.findOneAndUpdate(
         { id_purchase_order: new Types.ObjectId(purchaseOrderId) },
