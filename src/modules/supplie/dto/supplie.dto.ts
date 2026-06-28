@@ -31,4 +31,8 @@ export class CreateSupplyDto {
     @IsString()
     @IsOptional()
     notes?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  retornable?: boolean;
 }

@@ -177,8 +177,10 @@ export class ProductionService {
     // Descontar stock de cada insumo de la orden
     for (const supply of (order.supplies || [])) {
       if (!supply.id || !supply.totalQuantity) continue;
+      const supplyObjectId = Types.ObjectId.isValid(supply.id) ? new Types.ObjectId(supply.id) : null;
+      if (!supplyObjectId) continue;
       await this.supplyStockModel.updateMany(
-        { id_supply: supply.id },
+        { id_supply: supplyObjectId },
         { $inc: { physical_stock: -supply.totalQuantity } }
       );
     }
